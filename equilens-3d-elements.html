@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EquiLens 3D Elements</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0f;font-family:ui-monospace,monospace;color:#e0e0e0;min-height:100vh;padding:24px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.logo{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.logo span{color:#7F77DD}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.05);padding:4px;border-radius:8px;border:1px solid rgba(255,255,255,.08)}
+.tb{padding:7px 16px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:rgba(255,255,255,.45);transition:all .15s;letter-spacing:.05em}
+.tb.on{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.15)}
+.canvas-wrap{position:relative;width:100%;height:360px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);margin-bottom:16px}
+#c{display:block;width:100%;height:100%}
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.info-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px}
+.lbl{font-size:9px;font-weight:600;letter-spacing:.1em;color:rgba(255,255,255,.35);margin-bottom:6px}
+.title{font-size:14px;font-weight:600;color:#fff;margin-bottom:6px}
+.desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.6}
+.slider-row{display:flex;align-items:center;gap:10px;margin-top:12px}
+.slider-row label{font-size:10px;color:rgba(255,255,255,.4);white-space:nowrap}
+.slider-row input[type=range]{flex:1;accent-color:#7F77DD}
+.slider-row span{font-size:11px;font-weight:700;color:#7F77DD;min-width:32px;text-align:right;font-family:monospace}
+.stat-row{display:flex;gap:8px;margin-top:10px}
+.stat{flex:1;background:rgba(255,255,255,.04);border-radius:6px;padding:8px;text-align:center}
+.stat-v{font-size:16px;font-weight:700;font-family:monospace}
+.stat-l{font-size:9px;color:rgba(255,255,255,.35);margin-top:2px;letter-spacing:.06em}
+.code-card{background:#0d0d14;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px;display:flex;flex-direction:column}
+.code-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.copy-btn{padding:4px 10px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;letter-spacing:.04em}
+.copy-btn:hover{background:rgba(127,119,221,.2);border-color:#7F77DD;color:#7F77DD}
+.copy-btn.copied{background:rgba(29,158,117,.15);border-color:#1D9E75;color:#1D9E75}
+pre{font-size:10px;line-height:1.7;overflow-y:auto;flex:1;max-height:200px;color:rgba(255,255,255,.55)}
+.kw{color:#7F77DD}
+.fn{color:#5DCAA5}
+.cm{color:rgba(255,255,255,.25)}
+.nm{color:#EF9F27}
+.st{color:#9FE1CB}
+.fix-btn{margin-top:10px;width:100%;padding:8px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:.05em;cursor:pointer;border:1px solid rgba(127,119,221,.4);background:rgba(127,119,221,.1);color:#AFA9EC;transition:all .2s}
+.fix-btn:hover{background:rgba(127,119,221,.2);color:#fff}
+.fix-btn.done{border-color:rgba(29,158,117,.5);background:rgba(29,158,117,.1);color:#5DCAA5}
+.click-hint{font-size:10px;color:rgba(255,255,255,.25);margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Equi<span>Lens</span> <span style="font-size:12px;color:rgba(255,255,255,.3);font-weight:400">/ 3D Elements</span></div>
+  <div class="tabs">
+    <button class="tb on" data-id="orb"    onclick="switchTo('orb',this)">BIAS ORB</button>
+    <button class="tb"    data-id="neural" onclick="switchTo('neural',this)">NEURAL MESH</button>
+    <button class="tb"    data-id="helix"  onclick="switchTo('helix',this)">DNA HELIX</button>
+    <button class="tb"    data-id="galaxy" onclick="switchTo('galaxy',this)">GALAXY SPLIT</button>
+  </div>
+</div>
+
+<div class="canvas-wrap"><canvas id="c"></canvas></div>
+
+<div class="bottom">
+  <div class="info-card" id="info"></div>
+  <div class="code-card">
+    <div class="code-header">
+      <div class="lbl">CORE THREE.JS CODE</div>
+      <button class="copy-btn" id="copy-btn" onclick="copyCode()">COPY</button>
+    </div>
+    <pre id="codepre"></pre>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ─── globals ─── */
+let renderer, animId, cleanFn;
+let currentScene = null;
+let fairnessVal = 34;
+let fixedCount = 0;
+
+/* ─── renderer (created once, reused) ─── */
+function getRenderer() {
+  if (renderer) return renderer;
+  const c = document.getElementById('c');
+  renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  return renderer;
+}
+
+function resizeRenderer() {
+  const c = document.getElementById('c');
+  const w = c.clientWidth, h = c.clientHeight;
+  getRenderer().setSize(w, h, false);
+  if (currentScene) currentScene.resize && currentScene.resize(w, h);
+}
+
+function destroyScene() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  if (cleanFn) { cleanFn(); cleanFn = null; }
+}
+
+/* ─── tab switching ─── */
+const infos = {
+  orb: `<div class="lbl">ELEMENT 01 — BIAS ORB</div>
+    <div class="title">Reactive AI Entity Sphere</div>
+    <div class="desc">A pulsing 3D orb that visually represents your AI system's bias state. Color morphs from critical red → amber → healthy green. Drag to rotate. Outer particles react to fairness level.</div>
+    <div class="slider-row"><label>FAIRNESS</label><input type="range" min="5" max="95" value="34" id="sl-fairness" oninput="setFairness(+this.value)"><span id="sv-fairness">34</span></div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-v" id="sv-state" style="color:#E24B4A">BIASED</div><div class="stat-l">STATE</div></div>
+      <div class="stat"><div class="stat-v" id="sv-score" style="color:#EF9F27">34</div><div class="stat-l">SCORE</div></div>
+      <div class="stat"><div class="stat-v" id="sv-risk" style="color:#E24B4A">HIGH</div><div class="stat-l">RISK</div></div>
+    </div>`,
+  neural: `<div class="lbl">ELEMENT 02 — NEURAL MESH</div>
+    <div class="title">3D Bias Network Graph</div>
+    <div class="desc">A floating 3D node graph where each node represents a model feature. Node color encodes bias severity. Connections show feature correlations. Drag to orbit. Nodes pulse with bias intensity.</div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-v" id="nn-nodes" style="color:#7F77DD">18</div><div class="stat-l">NODES</div></div>
+      <div class="stat"><div class="stat-v" id="nn-biased" style="color:#E24B4A">11</div><div class="stat-l">BIASED</div></div>
+      <div class="stat"><div class="stat-v" id="nn-edges" style="color:#5DCAA5">24</div><div class="stat-l">EDGES</div></div>
+    </div>
+    <div class="click-hint">Drag to orbit the graph</div>`,
+  helix: `<div class="lbl">ELEMENT 03 — DNA HELIX</div>
+    <div class="title">Feature Infection Scanner</div>
+    <div class="desc">Your AI's feature set visualised as a DNA double-helix. Red spheres are bias-infected features. Click any red sphere to mark it fixed — it turns green instantly. Fix all features to fully clean the model.</div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-v" id="hx-total" style="color:#7F77DD">20</div><div class="stat-l">FEATURES</div></div>
+      <div class="stat"><div class="stat-v" id="hx-infected" style="color:#E24B4A">13</div><div class="stat-l">INFECTED</div></div>
+      <div class="stat"><div class="stat-v" id="hx-fixed" style="color:#1D9E75">0</div><div class="stat-l">FIXED</div></div>
+    </div>
+    <div class="click-hint">Click red spheres to fix them</div>
+    <button class="fix-btn" id="helix-reset" onclick="resetHelix()">RESET HELIX</button>`,
+  galaxy: `<div class="lbl">ELEMENT 04 — GALAXY SPLIT</div>
+    <div class="title">Demographic Particle Clusters</div>
+    <div class="desc">Each particle cloud represents a demographic group in your dataset. Cluster spread shows disparity in model treatment. Drag to rotate. Notice how some groups are pulled far from the centre — that's bias.</div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-v" style="color:#7F77DD">6</div><div class="stat-l">GROUPS</div></div>
+      <div class="stat"><div class="stat-v" style="color:#EF9F27">480</div><div class="stat-l">DATAPOINTS</div></div>
+      <div class="stat"><div class="stat-v" id="gx-spread" style="color:#E24B4A">HIGH</div><div class="stat-l">DISPARITY</div></div>
+    </div>
+    <div class="click-hint">Drag to rotate the galaxy</div>`
+};
+
+const codes = {
+  orb: `<span class="cm">// Bias Orb — Three.js r128</span>
+<span class="kw">const</span> scene = <span class="kw">new</span> <span class="fn">THREE.Scene</span>();
+<span class="kw">const</span> cam = <span class="kw">new</span> <span class="fn">THREE.PerspectiveCamera</span>(<span class="nm">60</span>, W/H, <span class="nm">0.1</span>, <span class="nm">50</span>);
+cam.position.z = <span class="nm">3.8</span>;
+
+<span class="cm">// Core orb — IcosahedronGeometry for faceted look</span>
+<span class="kw">const</span> geo = <span class="kw">new</span> <span class="fn">THREE.IcosahedronGeometry</span>(<span class="nm">1</span>, <span class="nm">3</span>);
+<span class="kw">const</span> mat = <span class="kw">new</span> <span class="fn">THREE.MeshPhongMaterial</span>({
+  color: <span class="nm">0xE24B4A</span>, shininess: <span class="nm">150</span>,
+  emissive: <span class="nm">0x330000</span>
+});
+<span class="kw">const</span> orb = <span class="kw">new</span> <span class="fn">THREE.Mesh</span>(geo, mat);
+scene.<span class="fn">add</span>(orb);
+
+<span class="cm">// Wireframe overlay</span>
+<span class="kw">const</span> wire = <span class="kw">new</span> <span class="fn">THREE.Mesh</span>(
+  <span class="kw">new</span> <span class="fn">THREE.IcosahedronGeometry</span>(<span class="nm">1.08</span>, <span class="nm">1</span>),
+  <span class="kw">new</span> <span class="fn">THREE.MeshBasicMaterial</span>({
+    wireframe: <span class="kw">true</span>, transparent: <span class="kw">true</span>,
+    opacity: <span class="nm">0.2</span>, color: <span class="nm">0xff4444</span>
+  })
+);
+scene.<span class="fn">add</span>(wire);
+
+<span class="cm">// Particle aura shell</span>
+<span class="kw">const</span> pos = <span class="kw">new</span> <span class="fn">Float32Array</span>(<span class="nm">500</span> * <span class="nm">3</span>);
+<span class="kw">for</span>(<span class="kw">let</span> i = <span class="nm">0</span>; i < <span class="nm">500</span>; i++) {
+  <span class="kw">const</span> theta = Math.<span class="fn">random</span>() * Math.PI * <span class="nm">2</span>;
+  <span class="kw">const</span> phi = Math.<span class="fn">acos</span>(<span class="nm">2</span>*Math.<span class="fn">random</span>()-<span class="nm">1</span>);
+  <span class="kw">const</span> r = <span class="nm">1.5</span> + Math.<span class="fn">random</span>() * <span class="nm">0.7</span>;
+  pos[i*<span class="nm">3</span>]   = r*Math.<span class="fn">sin</span>(phi)*Math.<span class="fn">cos</span>(theta);
+  pos[i*<span class="nm">3</span>+<span class="nm">1</span>] = r*Math.<span class="fn">sin</span>(phi)*Math.<span class="fn">sin</span>(theta);
+  pos[i*<span class="nm">3</span>+<span class="nm">2</span>] = r*Math.<span class="fn">cos</span>(phi);
+}
+<span class="kw">const</span> pgeo = <span class="kw">new</span> <span class="fn">THREE.BufferGeometry</span>();
+pgeo.<span class="fn">setAttribute</span>(<span class="st">'position'</span>, <span class="kw">new</span> <span class="fn">THREE.BufferAttribute</span>(pos, <span class="nm">3</span>));
+<span class="kw">const</span> pts = <span class="kw">new</span> <span class="fn">THREE.Points</span>(pgeo,
+  <span class="kw">new</span> <span class="fn">THREE.PointsMaterial</span>({ color: <span class="nm">0xff4444</span>, size: <span class="nm">0.025</span> })
+);
+scene.<span class="fn">add</span>(pts);
+
+<span class="cm">// Orbital ring</span>
+<span class="kw">const</span> ring = <span class="kw">new</span> <span class="fn">THREE.Mesh</span>(
+  <span class="kw">new</span> <span class="fn">THREE.TorusGeometry</span>(<span class="nm">1.6</span>, <span class="nm">0.02</span>, <span class="nm">8</span>, <span class="nm">80</span>),
+  <span class="kw">new</span> <span class="fn">THREE.MeshBasicMaterial</span>({ color: <span class="nm">0xff4444</span>, transparent: <span class="kw">true</span>, opacity: <span class="nm">0.6</span> })
+);
+ring.rotation.x = Math.PI * <span class="nm">0.35</span>;
+scene.<span class="fn">add</span>(ring);
+
+<span class="cm">// Lights</span>
+scene.<span class="fn">add</span>(<span class="kw">new</span> <span class="fn">THREE.AmbientLight</span>(<span class="nm">0x111111</span>));
+<span class="kw">const</span> pLight = <span class="kw">new</span> <span class="fn">THREE.PointLight</span>(<span class="nm">0xff4444</span>, <span class="nm">2</span>, <span class="nm">10</span>);
+scene.<span class="fn">add</span>(pLight);
+
+<span class="cm">// Animate loop</span>
+<span class="kw">function</span> <span class="fn">animate</span>(t) {
+  requestAnimationFrame(animate);
+  orb.rotation.y = rotY + t * <span class="nm">0.0003</span>;
+  wire.rotation.y = rotY - t * <span class="nm">0.00015</span>;
+  ring.rotation.z = t * <span class="nm">0.0002</span>;
+  pts.rotation.y = t * <span class="nm">0.0001</span>;
+  pLight.position.x = Math.<span class="fn">cos</span>(t*<span class="nm">0.0007</span>) * <span class="nm">3</span>;
+  pLight.position.z = Math.<span class="fn">sin</span>(t*<span class="nm">0.0007</span>) * <span class="nm">3</span>;
+  orb.scale.<span class="fn">setScalar</span>(<span class="nm">1</span> + Math.<span class="fn">sin</span>(t*<span class="nm">0.0015</span>)*<span class="nm">0.03</span>);
+  renderer.<span class="fn">render</span>(scene, cam);
+}`,
+  neural: `<span class="cm">// Neural Mesh — floating 3D node graph</span>
+<span class="kw">const</span> scene = <span class="kw">new</span> <span class="fn">THREE.Scene</span>();
+<span class="kw">const</span> nodeCount = <span class="nm">18</span>;
+<span class="kw">const</span> group = <span class="kw">new</span> <span class="fn">THREE.Group</span>();
+scene.<span class="fn">add</span>(group);
+
+<span class="cm">// Create nodes with random bias values</span>
+<span class="kw">const</span> nodes = [];
+<span class="kw">const</span> positions = [];
+<span class="kw">for</span>(<span class="kw">let</span> i = <span class="nm">0</span>; i &lt; nodeCount; i++) {
+  <span class="kw">const</span> bias = Math.<span class="fn">random</span>(); <span class="cm">// 0=fair, 1=biased</span>
+  <span class="kw">const</span> color = bias &gt; <span class="nm">0.6</span> ? <span class="nm">0xE24B4A</span>
+               : bias &gt; <span class="nm">0.35</span> ? <span class="nm">0xEF9F27</span> : <span class="nm">0x1D9E75</span>;
+  <span class="kw">const</span> mesh = <span class="kw">new</span> <span class="fn">THREE.Mesh</span>(
+    <span class="kw">new</span> <span class="fn">THREE.SphereGeometry</span>(<span class="nm">0.13</span>, <span class="nm">12</span>, <span class="nm">12</span>),
+    <span class="kw">new</span> <span class="fn">THREE.MeshPhongMaterial</span>({ color, emissive: color, emissiveIntensity: <span class="nm">0.4</span> })
+  );
+  <span class="kw">const</span> pos = <span class="kw">new</span> <span class="fn">THREE.Vector3</span>(
+    (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>) * <span class="nm">4</span>,
+    (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>) * <span class="nm">3</span>,
+    (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>) * <span class="nm">3</span>
+  );
+  mesh.position.<span class="fn">copy</span>(pos);
+  positions.<span class="fn">push</span>(pos);
+  nodes.<span class="fn">push</span>({ mesh, bias, baseScale: <span class="nm">1</span> });
+  group.<span class="fn">add</span>(mesh);
+}
+
+<span class="cm">// Build edges between nearby nodes</span>
+<span class="kw">const</span> edgePts = [];
+<span class="kw">for</span>(<span class="kw">let</span> a = <span class="nm">0</span>; a &lt; nodeCount; a++) {
+  <span class="kw">for</span>(<span class="kw">let</span> b = a+<span class="nm">1</span>; b &lt; nodeCount; b++) {
+    <span class="kw">if</span>(positions[a].<span class="fn">distanceTo</span>(positions[b]) &lt; <span class="nm">2.4</span>) {
+      edgePts.<span class="fn">push</span>(positions[a], positions[b]);
+    }
+  }
+}
+<span class="kw">const</span> egeo = <span class="kw">new</span> <span class="fn">THREE.BufferGeometry</span>().<span class="fn">setFromPoints</span>(edgePts);
+group.<span class="fn">add</span>(<span class="kw">new</span> <span class="fn">THREE.LineSegments</span>(egeo,
+  <span class="kw">new</span> <span class="fn">THREE.LineBasicMaterial</span>({ color: <span class="nm">0x333355</span>, transparent: <span class="kw">true</span>, opacity: <span class="nm">0.5</span> })
+));
+
+<span class="cm">// Animate — auto-rotate + pulse nodes</span>
+<span class="kw">function</span> <span class="fn">animate</span>(t) {
+  requestAnimationFrame(animate);
+  group.rotation.y = rotY + t * <span class="nm">0.0002</span>;
+  group.rotation.x = rotX + Math.<span class="fn">sin</span>(t*<span class="nm">0.0003</span>) * <span class="nm">0.15</span>;
+  nodes.<span class="fn">forEach</span>((n, i) =&gt; {
+    <span class="kw">const</span> pulse = <span class="nm">1</span> + Math.<span class="fn">sin</span>(t*<span class="nm">0.002</span> + i*<span class="nm">0.7</span>)*<span class="nm">0.15</span>*n.bias;
+    n.mesh.scale.<span class="fn">setScalar</span>(pulse);
+  });
+  renderer.<span class="fn">render</span>(scene, cam);
+}`,
+  helix: `<span class="cm">// DNA Helix — feature infection scanner</span>
+<span class="kw">const</span> scene = <span class="kw">new</span> <span class="fn">THREE.Scene</span>();
+<span class="kw">const</span> group = <span class="kw">new</span> <span class="fn">THREE.Group</span>();
+scene.<span class="fn">add</span>(group);
+<span class="kw">const</span> spheres = []; <span class="cm">// track all clickable nodes</span>
+
+<span class="kw">const</span> N = <span class="nm">20</span>; <span class="cm">// number of base pairs</span>
+<span class="kw">const</span> features = [<span class="st">'Gender'</span>,<span class="st">'Race'</span>,<span class="st">'Age'</span>,<span class="st">'Zip'</span>,<span class="st">'Name'</span> <span class="cm">/* ... */</span>];
+
+<span class="kw">for</span>(<span class="kw">let</span> i = <span class="nm">0</span>; i &lt; N; i++) {
+  <span class="kw">const</span> t = (i / N) * Math.PI * <span class="nm">4</span>; <span class="cm">// 2 full turns</span>
+  <span class="kw">const</span> y = (i / N) * <span class="nm">4</span> - <span class="nm">2</span>;
+  <span class="kw">const</span> infected = Math.<span class="fn">random</span>() &gt; <span class="nm">0.4</span>;
+
+  <span class="cm">// Strand A</span>
+  <span class="kw">const</span> matA = <span class="kw">new</span> <span class="fn">THREE.MeshPhongMaterial</span>({
+    color: infected ? <span class="nm">0xE24B4A</span> : <span class="nm">0x1D9E75</span>,
+    emissive: infected ? <span class="nm">0x330000</span> : <span class="nm">0x002211</span>
+  });
+  <span class="kw">const</span> sA = <span class="kw">new</span> <span class="fn">THREE.Mesh</span>(
+    <span class="kw">new</span> <span class="fn">THREE.SphereGeometry</span>(<span class="nm">0.14</span>, <span class="nm">10</span>, <span class="nm">10</span>), matA
+  );
+  sA.position.<span class="fn">set</span>(Math.<span class="fn">cos</span>(t) * <span class="nm">1.1</span>, y, Math.<span class="fn">sin</span>(t) * <span class="nm">1.1</span>);
+  sA.userData = { infected, fixed: <span class="kw">false</span>, mat: matA };
+  spheres.<span class="fn">push</span>(sA);
+  group.<span class="fn">add</span>(sA);
+
+  <span class="cm">// Strand B (opposite side)</span>
+  <span class="kw">const</span> sB = sA.<span class="fn">clone</span>();
+  sB.position.<span class="fn">set</span>(Math.<span class="fn">cos</span>(t+Math.PI)*<span class="nm">1.1</span>, y, Math.<span class="fn">sin</span>(t+Math.PI)*<span class="nm">1.1</span>);
+  group.<span class="fn">add</span>(sB);
+
+  <span class="cm">// Connecting rung</span>
+  <span class="kw">const</span> rgeo = <span class="kw">new</span> <span class="fn">THREE.BufferGeometry</span>()
+    .<span class="fn">setFromPoints</span>([sA.position, sB.position]);
+  group.<span class="fn">add</span>(<span class="kw">new</span> <span class="fn">THREE.LineSegments</span>(rgeo,
+    <span class="kw">new</span> <span class="fn">THREE.LineBasicMaterial</span>({ color: <span class="nm">0x334455</span>, opacity: <span class="nm">0.5</span>, transparent: <span class="kw">true</span> })
+  ));
+}
+
+<span class="cm">// Raycaster for click-to-fix</span>
+<span class="kw">const</span> ray = <span class="kw">new</span> <span class="fn">THREE.Raycaster</span>();
+canvas.<span class="fn">addEventListener</span>(<span class="st">'click'</span>, (e) =&gt; {
+  ray.setFromCamera(mouseNDC(e), cam);
+  <span class="kw">const</span> hits = ray.<span class="fn">intersectObjects</span>(spheres);
+  <span class="kw">if</span>(hits[<span class="nm">0</span>]?.object.userData.infected) {
+    hits[<span class="nm">0</span>].object.userData.mat.color.<span class="fn">setHex</span>(<span class="nm">0x1D9E75</span>);
+    hits[<span class="nm">0</span>].object.userData.fixed = <span class="kw">true</span>;
+    fixedCount++;
+  }
+});`,
+  galaxy: `<span class="cm">// Galaxy Split — demographic particle clusters</span>
+<span class="kw">const</span> scene = <span class="kw">new</span> <span class="fn">THREE.Scene</span>();
+<span class="kw">const</span> groups = [
+  { label: <span class="st">'Male'</span>,    color: <span class="nm">0x7F77DD</span>, center: [<span class="nm">1.5</span>, <span class="nm">0</span>, <span class="nm">0</span>],    spread: <span class="nm">0.6</span> },
+  { label: <span class="st">'Female'</span>,  color: <span class="nm">0xD4537E</span>, center: [-<span class="nm">2.2</span>, <span class="nm">0.5</span>, <span class="nm">0.5</span>], spread: <span class="nm">1.2</span> },
+  { label: <span class="st">'18-30'</span>,   color: <span class="nm">0x1D9E75</span>, center: [<span class="nm">0</span>, <span class="nm">1.8</span>, <span class="nm">0.3</span>],  spread: <span class="nm">0.5</span> },
+  { label: <span class="st">'55+'</span>,     color: <span class="nm">0xE24B4A</span>, center: [<span class="nm">0.5</span>, -<span class="nm">2</span>, -<span class="nm">0.8</span>], spread: <span class="nm">1.4</span> },
+  { label: <span class="st">'Urban'</span>,   color: <span class="nm">0x5DCAA5</span>, center: [-<span class="nm">0.5</span>, <span class="nm">0</span>, <span class="nm">2</span>],   spread: <span class="nm">0.6</span> },
+  { label: <span class="st">'Rural'</span>,   color: <span class="nm">0xEF9F27</span>, center: [<span class="nm">0.8</span>, <span class="nm">0.3</span>, -<span class="nm">2.2</span>],spread: <span class="nm">1.3</span> },
+];
+
+<span class="kw">const</span> PER_GROUP = <span class="nm">80</span>;
+groups.<span class="fn">forEach</span>(g =&gt; {
+  <span class="kw">const</span> pos = <span class="kw">new</span> <span class="fn">Float32Array</span>(PER_GROUP * <span class="nm">3</span>);
+  <span class="kw">for</span>(<span class="kw">let</span> i = <span class="nm">0</span>; i &lt; PER_GROUP; i++) {
+    pos[i*<span class="nm">3</span>]   = g.center[<span class="nm">0</span>] + (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>)*g.spread;
+    pos[i*<span class="nm">3</span>+<span class="nm">1</span>] = g.center[<span class="nm">1</span>] + (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>)*g.spread;
+    pos[i*<span class="nm">3</span>+<span class="nm">2</span>] = g.center[<span class="nm">2</span>] + (Math.<span class="fn">random</span>()-<span class="nm">0.5</span>)*g.spread;
+  }
+  <span class="kw">const</span> geo = <span class="kw">new</span> <span class="fn">THREE.BufferGeometry</span>();
+  geo.<span class="fn">setAttribute</span>(<span class="st">'position'</span>, <span class="kw">new</span> <span class="fn">THREE.BufferAttribute</span>(pos, <span class="nm">3</span>));
+  scene.<span class="fn">add</span>(<span class="kw">new</span> <span class="fn">THREE.Points</span>(geo,
+    <span class="kw">new</span> <span class="fn">THREE.PointsMaterial</span>({
+      color: g.color, size: <span class="nm">0.045</span>, sizeAttenuation: <span class="kw">true</span>,
+      transparent: <span class="kw">true</span>, opacity: <span class="nm">0.9</span>
+    })
+  ));
+});
+
+<span class="cm">// Animate with slow Y orbit + drag rotation</span>
+<span class="kw">function</span> <span class="fn">animate</span>(t) {
+  requestAnimationFrame(animate);
+  scene.rotation.y = rotY + t * <span class="nm">0.00015</span>;
+  scene.rotation.x = rotX + Math.<span class="fn">sin</span>(t*<span class="nm">0.00025</span>) * <span class="nm">0.08</span>;
+  renderer.<span class="fn">render</span>(scene, cam);
+}`
+};
+
+document.getElementById('info').innerHTML = infos.orb;
+document.getElementById('codepre').innerHTML = codes.orb;
+
+/* ─── Scene 1: Bias Orb ─── */
+let orbScene = null;
+function initOrb() {
+  const r = getRenderer();
+  const c = document.getElementById('c');
+  const W = c.clientWidth || 660, H = c.clientHeight || 360;
+  r.setSize(W, H, false);
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(60, W / H, 0.1, 50);
+  cam.position.z = 3.8;
+
+  const geo = new THREE.IcosahedronGeometry(1, 3);
+  const mat = new THREE.MeshPhongMaterial({ color: 0xE24B4A, shininess: 150, emissive: 0x330000 });
+  const orb = new THREE.Mesh(geo, mat);
+  scene.add(orb);
+
+  const wire = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.09, 1),
+    new THREE.MeshBasicMaterial({ wireframe: true, transparent: true, opacity: 0.2, color: 0xff4444 })
+  );
+  scene.add(wire);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(1.65, 0.022, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.55 })
+  );
+  ring.rotation.x = Math.PI * 0.35;
+  scene.add(ring);
+
+  const ring2 = new THREE.Mesh(
+    new THREE.TorusGeometry(1.4, 0.012, 8, 60),
+    new THREE.MeshBasicMaterial({ color: 0xff6644, transparent: true, opacity: 0.3 })
+  );
+  ring2.rotation.x = Math.PI * 0.6;
+  ring2.rotation.y = Math.PI * 0.2;
+  scene.add(ring2);
+
+  const pCount = 500;
+  const pPos = new Float32Array(pCount * 3);
+  for (let i = 0; i < pCount; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const rv = 1.45 + Math.random() * 0.75;
+    pPos[i * 3] = rv * Math.sin(phi) * Math.cos(theta);
+    pPos[i * 3 + 1] = rv * Math.sin(phi) * Math.sin(theta);
+    pPos[i * 3 + 2] = rv * Math.cos(phi);
+  }
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const pmat = new THREE.PointsMaterial({ color: 0xff4444, size: 0.022, sizeAttenuation: true });
+  const pts = new THREE.Points(pgeo, pmat);
+  scene.add(pts);
+
+  scene.add(new THREE.AmbientLight(0x111111));
+  const pLight = new THREE.PointLight(0xff4444, 2, 10);
+  scene.add(pLight);
+  const pLight2 = new THREE.PointLight(0xffffff, 0.8, 10);
+  pLight2.position.set(3, 3, 3);
+  scene.add(pLight2);
+
+  let rotX = 0, rotY = 0, mx = 0, my = 0, dragging = false;
+  c.addEventListener('mousedown', e => { dragging = true; mx = e.clientX; my = e.clientY; });
+  c.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    rotY += (e.clientX - mx) * 0.006; rotX += (e.clientY - my) * 0.006;
+    mx = e.clientX; my = e.clientY;
+  });
+  c.addEventListener('mouseup', () => dragging = false);
+  c.addEventListener('mouseleave', () => dragging = false);
+
+  orbScene = { mat, pmat, wire, ring, ring2 };
+
+  function animate(t) {
+    animId = requestAnimationFrame(animate);
+    orb.rotation.y = rotY + t * 0.00035;
+    orb.rotation.x = rotX;
+    wire.rotation.y = rotY - t * 0.00015;
+    wire.rotation.x = rotX;
+    ring.rotation.z = t * 0.00022;
+    ring2.rotation.y = t * 0.00018;
+    pts.rotation.y = rotY + t * 0.0001;
+    pts.rotation.x = rotX * 0.5;
+    pLight.position.x = Math.cos(t * 0.0007) * 3.5;
+    pLight.position.z = Math.sin(t * 0.0007) * 3.5;
+    orb.scale.setScalar(1 + Math.sin(t * 0.0015) * 0.03);
+    r.render(scene, cam);
+  }
+  animate(0);
+
+  cleanFn = () => {
+    c.removeEventListener('mousedown', () => {});
+    c.removeEventListener('mousemove', () => {});
+    c.removeEventListener('mouseup', () => {});
+  };
+}
+
+/* ─── Scene 2: Neural Mesh ─── */
+function initNeural() {
+  const r = getRenderer();
+  const c = document.getElementById('c');
+  const W = c.clientWidth || 660, H = c.clientHeight || 360;
+  r.setSize(W, H, false);
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(60, W / H, 0.1, 50);
+  cam.position.z = 5;
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const nodeCount = 18;
+  const biasVals = [0.9,0.8,0.75,0.7,0.65,0.6,0.55,0.45,0.4,0.35,0.3,0.25,0.2,0.85,0.78,0.12,0.15,0.08];
+  const positions = [];
+  const nodeMeshes = [];
+
+  for (let i = 0; i < nodeCount; i++) {
+    const bias = biasVals[i];
+    const col = bias > 0.6 ? 0xE24B4A : bias > 0.35 ? 0xEF9F27 : 0x1D9E75;
+    const emi = bias > 0.6 ? 0x220000 : bias > 0.35 ? 0x221100 : 0x001108;
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14 + bias * 0.06, 12, 12),
+      new THREE.MeshPhongMaterial({ color: col, emissive: emi, shininess: 80 })
+    );
+    const pos = new THREE.Vector3(
+      (Math.random() - 0.5) * 4.5,
+      (Math.random() - 0.5) * 3.5,
+      (Math.random() - 0.5) * 3
+    );
+    m.position.copy(pos);
+    positions.push(pos);
+    nodeMeshes.push({ mesh: m, bias });
+    group.add(m);
+  }
+
+  const edgePts = [];
+  for (let a = 0; a < nodeCount; a++) {
+    for (let b = a + 1; b < nodeCount; b++) {
+      if (positions[a].distanceTo(positions[b]) < 2.5) {
+        edgePts.push(positions[a].clone(), positions[b].clone());
+      }
+    }
+  }
+  const egeo = new THREE.BufferGeometry().setFromPoints(edgePts);
+  group.add(new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x223355, transparent: true, opacity: 0.45 })));
+
+  document.getElementById('nn-edges').textContent = Math.floor(edgePts.length / 2);
+  document.getElementById('nn-biased').textContent = biasVals.filter(v => v > 0.6).length;
+
+  scene.add(new THREE.AmbientLight(0x222222));
+  const l1 = new THREE.PointLight(0xffffff, 1.2, 20);
+  l1.position.set(5, 5, 5);
+  scene.add(l1);
+  const l2 = new THREE.PointLight(0x3333ff, 0.5, 20);
+  l2.position.set(-5, -3, -5);
+  scene.add(l2);
+
+  let rotX = 0, rotY = 0, mx = 0, my = 0, dragging = false;
+  c.addEventListener('mousedown', e => { dragging = true; mx = e.clientX; my = e.clientY; });
+  c.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    rotY += (e.clientX - mx) * 0.006; rotX += (e.clientY - my) * 0.006;
+    mx = e.clientX; my = e.clientY;
+  });
+  c.addEventListener('mouseup', () => dragging = false);
+  c.addEventListener('mouseleave', () => dragging = false);
+
+  function animate(t) {
+    animId = requestAnimationFrame(animate);
+    group.rotation.y = rotY + t * 0.00025;
+    group.rotation.x = rotX + Math.sin(t * 0.0003) * 0.1;
+    nodeMeshes.forEach((n, i) => {
+      const pulse = 1 + Math.sin(t * 0.002 + i * 0.72) * 0.18 * n.bias;
+      n.mesh.scale.setScalar(pulse);
+    });
+    r.render(scene, cam);
+  }
+  animate(0);
+}
+
+/* ─── Scene 3: DNA Helix ─── */
+let helixSpheres = [];
+let helixInfected = 0;
+let helixFixed = 0;
+
+function resetHelix() {
+  helixFixed = 0;
+  helixSpheres.forEach(s => {
+    if (s.userData.canFix) {
+      s.material.color.setHex(0xE24B4A);
+      s.material.emissive.setHex(0x220000);
+      s.userData.fixed = false;
+    }
+  });
+  document.getElementById('hx-fixed').textContent = 0;
+  document.getElementById('hx-infected').textContent = helixInfected;
+  const btn = document.getElementById('helix-reset');
+  if (btn) { btn.textContent = 'RESET HELIX'; btn.classList.remove('done'); }
+}
+
+function initHelix() {
+  const r = getRenderer();
+  const c = document.getElementById('c');
+  const W = c.clientWidth || 660, H = c.clientHeight || 360;
+  r.setSize(W, H, false);
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(55, W / H, 0.1, 50);
+  cam.position.set(0, 0, 5.5);
+
+  helixSpheres = [];
+  helixInfected = 0;
+  helixFixed = 0;
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const N = 20;
+  const strandA = [], strandB = [];
+
+  for (let i = 0; i < N; i++) {
+    const t = (i / (N - 1)) * Math.PI * 4;
+    const y = (i / (N - 1)) * 4 - 2;
+    const infected = Math.random() > 0.38;
+    if (infected) helixInfected++;
+
+    const colA = infected ? 0xE24B4A : 0x1D9E75;
+    const emiA = infected ? 0x200000 : 0x001108;
+    const matA = new THREE.MeshPhongMaterial({ color: colA, emissive: emiA, shininess: 90 });
+    const sA = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), matA);
+    sA.position.set(Math.cos(t) * 1.1, y, Math.sin(t) * 1.1);
+    sA.userData = { infected, fixed: false, canFix: infected };
+    helixSpheres.push(sA);
+    group.add(sA);
+    strandA.push(sA.position.clone());
+
+    const colB = 0x7F77DD;
+    const sB = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11, 10, 10),
+      new THREE.MeshPhongMaterial({ color: colB, emissive: 0x110022, shininess: 80 })
+    );
+    sB.position.set(Math.cos(t + Math.PI) * 1.1, y, Math.sin(t + Math.PI) * 1.1);
+    group.add(sB);
+    strandB.push(sB.position.clone());
+
+    const rgeo = new THREE.BufferGeometry().setFromPoints([sA.position.clone(), sB.position.clone()]);
+    group.add(new THREE.LineSegments(rgeo, new THREE.LineBasicMaterial({ color: 0x334466, transparent: true, opacity: 0.4 })));
+  }
+
+  const splineA = new THREE.CatmullRomCurve3(strandA);
+  const splineB = new THREE.CatmullRomCurve3(strandB);
+  const tubeMatA = new THREE.MeshBasicMaterial({ color: 0x553344, transparent: true, opacity: 0.3 });
+  const tubeMatB = new THREE.MeshBasicMaterial({ color: 0x334455, transparent: true, opacity: 0.3 });
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(splineA, 80, 0.018, 6, false), tubeMatA));
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(splineB, 80, 0.018, 6, false), tubeMatB));
+
+  document.getElementById('hx-infected').textContent = helixInfected;
+  document.getElementById('hx-total').textContent = N;
+  document.getElementById('hx-fixed').textContent = 0;
+
+  scene.add(new THREE.AmbientLight(0x222222));
+  const l1 = new THREE.PointLight(0xff4444, 1, 15);
+  l1.position.set(3, 2, 3);
+  scene.add(l1);
+  const l2 = new THREE.PointLight(0x4444ff, 0.8, 15);
+  l2.position.set(-3, -2, -3);
+  scene.add(l2);
+  const l3 = new THREE.PointLight(0xffffff, 0.6, 15);
+  l3.position.set(0, 4, 0);
+  scene.add(l3);
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  function onClickHelix(e) {
+    const rect = c.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, cam);
+    const hits = raycaster.intersectObjects(helixSpheres);
+    if (hits.length > 0) {
+      const obj = hits[0].object;
+      if (obj.userData.infected && !obj.userData.fixed) {
+        obj.material.color.setHex(0x1D9E75);
+        obj.material.emissive.setHex(0x001108);
+        obj.userData.fixed = true;
+        helixFixed++;
+        document.getElementById('hx-fixed').textContent = helixFixed;
+        document.getElementById('hx-infected').textContent = helixInfected - helixFixed;
+        if (helixFixed >= helixInfected) {
+          const btn = document.getElementById('helix-reset');
+          if (btn) { btn.textContent = 'ALL FEATURES FIXED ✓'; btn.classList.add('done'); }
+        }
+      }
+    }
+  }
+  c.addEventListener('click', onClickHelix);
+  cleanFn = () => c.removeEventListener('click', onClickHelix);
+
+  function animate(t) {
+    animId = requestAnimationFrame(animate);
+    group.rotation.y = t * 0.0004;
+    helixSpheres.forEach((s, i) => {
+      if (s.userData.infected && !s.userData.fixed) {
+        s.scale.setScalar(1 + Math.sin(t * 0.002 + i * 0.5) * 0.12);
+      }
+    });
+    r.render(scene, cam);
+  }
+  animate(0);
+}
+
+/* ─── Scene 4: Galaxy Split ─── */
+function initGalaxy() {
+  const r = getRenderer();
+  const c = document.getElementById('c');
+  const W = c.clientWidth || 660, H = c.clientHeight || 360;
+  r.setSize(W, H, false);
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(65, W / H, 0.1, 100);
+  cam.position.z = 6.5;
+
+  const groups = [
+    { color: 0x7F77DD, center: [1.5, 0, 0],      spread: 0.55 },
+    { color: 0xD4537E, center: [-2.2, 0.6, 0.4],  spread: 1.25 },
+    { color: 0x1D9E75, center: [0, 1.9, 0.2],     spread: 0.5  },
+    { color: 0xE24B4A, center: [0.5, -2, -0.9],   spread: 1.35 },
+    { color: 0x5DCAA5, center: [-0.4, 0, 2.1],    spread: 0.55 },
+    { color: 0xEF9F27, center: [0.9, 0.3, -2.3],  spread: 1.3  },
+  ];
+
+  const PER = 80;
+  const ptObjects = [];
+  groups.forEach(g => {
+    const pos = new Float32Array(PER * 3);
+    for (let i = 0; i < PER; i++) {
+      pos[i * 3]     = g.center[0] + (Math.random() - 0.5) * g.spread * 2;
+      pos[i * 3 + 1] = g.center[1] + (Math.random() - 0.5) * g.spread * 2;
+      pos[i * 3 + 2] = g.center[2] + (Math.random() - 0.5) * g.spread * 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: g.color, size: 0.048, sizeAttenuation: true, transparent: true, opacity: 0.92 }));
+    scene.add(pts);
+    ptObjects.push(pts);
+  });
+
+  let rotX = 0, rotY = 0, mx = 0, my = 0, dragging = false;
+  c.addEventListener('mousedown', e => { dragging = true; mx = e.clientX; my = e.clientY; });
+  c.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    rotY += (e.clientX - mx) * 0.006; rotX += (e.clientY - my) * 0.004;
+    mx = e.clientX; my = e.clientY;
+  });
+  c.addEventListener('mouseup', () => dragging = false);
+  c.addEventListener('mouseleave', () => dragging = false);
+
+  function animate(t) {
+    animId = requestAnimationFrame(animate);
+    scene.rotation.y = rotY + t * 0.00018;
+    scene.rotation.x = rotX + Math.sin(t * 0.00025) * 0.06;
+    ptObjects.forEach((p, i) => {
+      p.rotation.y = Math.sin(t * 0.0001 + i * 0.5) * 0.04;
+    });
+    r.render(scene, cam);
+  }
+  animate(0);
+}
+
+/* ─── fairness slider (orb) ─── */
+function setFairness(v) {
+  fairnessVal = v;
+  document.getElementById('sv-fairness').textContent = v;
+  const r = v < 50 ? 1 : Math.max(0, 1 - (v - 50) / 50 * 1.2);
+  const g = v < 50 ? (v / 50) * 0.62 : Math.min(1, 0.62 + (v - 50) / 50 * 0.38);
+  const col = new THREE.Color(r, g * 0.92, 0);
+  if (orbScene) {
+    orbScene.mat.color.copy(col);
+    orbScene.mat.emissive.setRGB(r * 0.18, g * 0.09, 0);
+    orbScene.wire.material.color.copy(col);
+    orbScene.ring.material.color.copy(col);
+    orbScene.ring2.material.color.copy(col);
+    orbScene.pmat.color.copy(col);
+  }
+  const state = v >= 75 ? 'FAIR' : v >= 50 ? 'MODERATE' : 'BIASED';
+  const risk = v >= 75 ? 'LOW' : v >= 50 ? 'MED' : 'HIGH';
+  const stateCol = v >= 75 ? '#1D9E75' : v >= 50 ? '#EF9F27' : '#E24B4A';
+  document.getElementById('sv-state').textContent = state;
+  document.getElementById('sv-state').style.color = stateCol;
+  document.getElementById('sv-score').textContent = v;
+  document.getElementById('sv-score').style.color = stateCol;
+  document.getElementById('sv-risk').textContent = risk;
+  document.getElementById('sv-risk').style.color = stateCol;
+}
+
+/* ─── copy button ─── */
+function copyCode() {
+  const pre = document.getElementById('codepre');
+  const text = pre.innerText || pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'COPIED ✓'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+/* ─── tab switching ─── */
+const sceneInits = { orb: initOrb, neural: initNeural, helix: initHelix, galaxy: initGalaxy };
+function switchTo(id, btn) {
+  destroyScene();
+  document.querySelectorAll('.tb').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  document.getElementById('info').innerHTML = infos[id];
+  document.getElementById('codepre').innerHTML = codes[id];
+  fixedCount = 0;
+  sceneInits[id]();
+}
+
+/* ─── init ─── */
+window.addEventListener('load', () => {
+  initOrb();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EquiLens — AI Fairness OS</title>
+<style>
+:root{
+  --bg:#07070e;--bg1:rgba(255,255,255,.028);--bg2:rgba(255,255,255,.055);
+  --bd:rgba(255,255,255,.065);--bd2:rgba(255,255,255,.13);
+  --txt:#c8c8e0;--txt2:rgba(200,200,224,.52);--txt3:rgba(200,200,224,.3);
+  --pu:#7F77DD;--pu2:#534AB7;--te:#1D9E75;--re:#E24B4A;--am:#EF9F27;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse at 12% 55%,rgba(127,119,221,.07) 0%,transparent 55%),
+    radial-gradient(ellipse at 88% 12%,rgba(29,158,117,.045) 0%,transparent 48%),
+    linear-gradient(rgba(127,119,221,.016) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(127,119,221,.016) 1px,transparent 1px);
+  background-size:100% 100%,100% 100%,38px 38px,38px 38px;
+  color:var(--txt);
+  font-family:ui-monospace,'Cascadia Code','JetBrains Mono',monospace;
+  display:grid;grid-template-rows:54px 46px 1fr;
+}
+#sl{position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.012) 3px,rgba(0,0,0,.012) 4px);pointer-events:none;z-index:9999}
+/* ─ header ─ */
+header{display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--bd);background:rgba(7,7,14,.9);backdrop-filter:blur(14px)}
+.logo{font-size:19px;font-weight:800;letter-spacing:-.5px;color:#fff}
+.logo em{color:var(--pu);font-style:normal}
+.h-sep{flex:1}
+.h-tag{font-size:9px;color:var(--txt3);letter-spacing:.09em;padding:2px 9px;border-radius:4px;border:1px solid var(--bd);background:var(--bg1)}
+.xpr{display:flex;align-items:center;gap:7px}
+.xp-lv{font-size:10px;font-weight:800;color:var(--pu);padding:2px 8px;border-radius:4px;background:rgba(127,119,221,.12);border:1px solid rgba(127,119,221,.22);letter-spacing:.04em}
+.xp-bw{width:90px;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.xp-bf{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--pu2),var(--pu));transition:width .6s ease}
+.xp-n{font-size:10px;color:var(--txt2)}
+.hbdg{font-size:9px;font-weight:800;letter-spacing:.1em;padding:3px 9px;border-radius:4px;border:1px solid}
+.bdg-r{background:rgba(226,75,74,.14);color:#ff7070;border-color:rgba(226,75,74,.26)}
+.bdg-g{background:rgba(29,158,117,.12);color:#2ed8a0;border-color:rgba(29,158,117,.22)}
+/* ─ nav ─ */
+nav{display:flex;align-items:center;gap:1px;padding:0 14px;border-bottom:1px solid var(--bd);background:rgba(7,7,14,.7);overflow-x:auto}
+.tb{padding:0 17px;height:46px;font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--txt3);background:transparent;border:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;display:flex;align-items:center;gap:6px}
+.tb .ic{opacity:.5;transition:opacity .2s}
+.tb:hover{color:var(--txt2)}
+.tb.on{color:var(--pu);border-bottom-color:var(--pu)}
+.tb.on .ic{opacity:1}
+/* ─ main / tabs ─ */
+main{overflow:hidden;position:relative}
+.tc{position:absolute;inset:0;overflow-y:auto;padding:16px 18px;display:none}
+.tc.on{display:block}
+.tc::-webkit-scrollbar{width:3px}
+.tc::-webkit-scrollbar-track{background:transparent}
+.tc::-webkit-scrollbar-thumb{background:rgba(127,119,221,.3);border-radius:2px}
+/* ─ cards ─ */
+.cd{background:var(--bg1);border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
+.cd-lbl{font-size:9px;font-weight:700;letter-spacing:.13em;color:var(--txt3);margin-bottom:10px}
+/* ─ stat cards ─ */
+.s4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sc{padding:12px 14px}
+.sc .sv{font-size:28px;font-weight:800;line-height:1.1;transition:color .4s}
+.sc .sl{font-size:9px;letter-spacing:.1em;color:var(--txt3);margin-bottom:5px}
+.sc .ss{font-size:9px;color:var(--txt3);margin-top:5px}
+/* ─ progress bars ─ */
+.pw{height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:8px}
+.pf{height:100%;border-radius:2px;transition:width .55s cubic-bezier(.4,0,.2,1),background .4s}
+/* ─ ring SVG ─ */
+.rsvg{width:44px;height:44px}
+/* ─ pills ─ */
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.08em;border:1px solid}
+.pr{background:rgba(226,75,74,.12);color:#ff7070;border-color:rgba(226,75,74,.22)}
+.pa{background:rgba(239,159,39,.12);color:#ffb74d;border-color:rgba(239,159,39,.2)}
+.pg{background:rgba(29,158,117,.12);color:#2ed8a0;border-color:rgba(29,158,117,.2)}
+.pp{background:rgba(127,119,221,.12);color:#a09aff;border-color:rgba(127,119,221,.2)}
+/* ─ sliders ─ */
+.sw{margin-bottom:12px}
+.sl-r{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.sl-r span:first-child{font-size:11px;color:var(--txt2)}
+.sl-r span:last-child{font-size:11px;font-weight:700;color:var(--pu)}
+input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.09);border-radius:2px;cursor:pointer;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--pu);border:2px solid rgba(127,119,221,.35);box-shadow:0 0 8px rgba(127,119,221,.5);cursor:pointer}
+/* ─ buttons ─ */
+.btn{width:100%;padding:10px 16px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;border:1px solid;transition:all .2s;margin-top:8px}
+.bp{background:rgba(127,119,221,.12);border-color:rgba(127,119,221,.3);color:#a09aff}
+.bp:hover{background:rgba(127,119,221,.22)}
+.bg2{background:var(--bg1);border-color:var(--bd2);color:var(--txt2)}
+.bg2:hover{background:var(--bg2);color:var(--txt)}
+.bs{background:rgba(29,158,117,.12);border-color:rgba(29,158,117,.3);color:#2ed8a0}
+/* ─ grid layouts ─ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.fc{display:flex;flex-direction:column;gap:10px}
+/* ─ canvas wrappers ─ */
+.cw{position:relative;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.28)}
+canvas.sc2{display:block;width:100%;height:100%}
+/* ─ arena specific ─ */
+#t-arena .ag{display:grid;grid-template-columns:270px 1fr;gap:13px;height:calc(100vh - 54px - 46px - 32px);min-height:480px}
+.al{display:flex;flex-direction:column;gap:10px}
+.oc{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.ocw{flex:1;min-height:180px;position:relative;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.35)}
+#c-orb{display:block;width:100%;height:100%}
+.ar{display:grid;grid-template-rows:auto auto 1fr;gap:10px}
+/* ─ DNA tags ─ */
+#dna-cloud{display:flex;flex-wrap:wrap;gap:4px}
+.dt{padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.06em;border:1px solid}
+/* ─ bias contrib ─ */
+.bc-r{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.bc-r:last-child{border-bottom:none}
+.bc-bw{width:58px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.bc-bf{height:100%;border-radius:2px;transition:width .4s}
+/* ─ intersectionality ─ */
+.ixg{display:grid;grid-template-columns:auto repeat(3,1fr);gap:3px;font-size:9px}
+.ixc{padding:6px 3px;border-radius:4px;text-align:center;font-weight:700;transition:all .4s;font-size:10px}
+.ixh{display:flex;align-items:center;justify-content:center;color:var(--txt3)}
+/* ─ compliance ─ */
+.reg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.rg-s{font-size:20px;font-weight:800;transition:color .4s;margin:4px 0}
+.rg-d{font-size:10px;color:var(--txt3);line-height:1.5}
+/* ─ actions ─ */
+.ai{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:7px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);margin-bottom:6px}
+/* ─ achievement badges ─ */
+.bdgr{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bdi{padding:12px;border-radius:8px;background:var(--bg1);border:1px solid var(--bd);transition:all .3s}
+.bdi.ok{border-color:rgba(127,119,221,.3);background:rgba(127,119,221,.05)}
+.bdi-ic{font-size:24px;margin-bottom:6px;line-height:1}
+.bdi-n{font-size:11px;font-weight:700;color:var(--txt)}
+.bdi-d{font-size:9px;color:var(--txt3);margin-top:2px;line-height:1.4}
+.bdi-x{font-size:10px;font-weight:700;color:var(--pu);margin-top:5px}
+/* ─ milestones ─ */
+.mi{display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.mi:last-child{border-bottom:none}
+.mi-lv{font-size:10px;font-weight:800;min-width:28px;padding-top:1px}
+.mi-t{font-size:12px;font-weight:600}
+.mi-d{font-size:10px;color:var(--txt3);margin-top:1px}
+/* ─ utility ─ */
+tr,.re{color:#ff7070}.te{color:#2ed8a0}.ta{color:#ffb74d}.tp{color:#a09aff}.tm{color:var(--txt3)}
+</style>
+</head>
+<body>
+<div id="sl"></div>
+
+<header>
+  <div class="logo">Equi<em>Lens</em></div>
+  <div class="h-tag">HIRING AI · XGBOOST · 50K ROWS</div>
+  <div class="h-sep"></div>
+  <div class="xpr">
+    <span class="xp-lv" id="h-lv">LV 3</span>
+    <div class="xp-bw"><div class="xp-bf" id="h-xpb" style="width:34%"></div></div>
+    <span class="xp-n">XP <span id="h-xp">340</span></span>
+  </div>
+  <span class="hbdg bdg-r" id="h-risk">HIGH RISK</span>
+  <span class="hbdg bdg-g">● LIVE</span>
+</header>
+
+<nav>
+  <button class="tb on" data-t="arena"       onclick="go('arena',this)"><span class="ic">◈</span>ARENA</button>
+  <button class="tb"    data-t="analysis"    onclick="go('analysis',this)"><span class="ic">⬡</span>ANALYSIS</button>
+  <button class="tb"    data-t="simulator"   onclick="go('simulator',this)"><span class="ic">⚙</span>SIMULATOR</button>
+  <button class="tb"    data-t="compliance"  onclick="go('compliance',this)"><span class="ic">⚖</span>COMPLIANCE</button>
+  <button class="tb"    data-t="achievements" onclick="go('achievements',this)"><span class="ic">★</span>ACHIEVEMENTS</button>
+</nav>
+
+<main>
+
+<!-- ═══════ ARENA ═══════ -->
+<section id="t-arena" class="tc on">
+<div class="ag">
+  <div class="al">
+    <div class="cd oc">
+      <div class="cd-lbl">AI ENTITY — BIAS STATE</div>
+      <div class="ocw"><canvas id="c-orb"></canvas></div>
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:10px;color:var(--txt3)">ENTITY STATE</span>
+          <span id="a-st" class="pill pr">BIASED</span>
+        </div>
+        <div class="sw" style="margin:0">
+          <div class="sl-r"><span>Fairness override</span><span id="sv-fo">34</span></div>
+          <input type="range" id="sl-fo" min="5" max="95" value="34" oninput="setFairness(+this.value)">
+        </div>
+      </div>
+    </div>
+    <div class="cd" style="padding:12px 14px">
+      <div class="cd-lbl">ENTITY PROFILE</div>
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
+        <div style="display:flex;justify-content:space-between"><span class="tm">Model</span><span>XGBoost 1.7</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="tm">Domain</span><span>Hiring AI</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="tm">Dataset</span><span>50,000 rows</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="tm">Features</span><span>20 inputs</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="tm">Deploy status</span><span class="re">⚠ Blocked</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ar">
+    <div class="s4">
+      <div class="cd sc">
+        <div class="sl">FAIRNESS</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="sv re" id="s-f">34</div>
+          <svg class="rsvg" viewBox="0 0 44 44"><circle cx="22" cy="22" r="16" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4"/><circle id="rr-f" cx="22" cy="22" r="16" fill="none" stroke="#ff7070" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="66" stroke-linecap="round" transform="rotate(-90 22 22)" style="transition:all .6s"/></svg>
+        </div>
+        <div class="pw"><div id="pb-f" class="pf" style="width:34%;background:#E24B4A"></div></div>
+        <div class="ss">Target: 80+</div>
+      </div>
+      <div class="cd sc">
+        <div class="sl">ACCURACY</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="sv ta" id="s-a">69</div>
+          <svg class="rsvg" viewBox="0 0 44 44"><circle cx="22" cy="22" r="16" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4"/><circle id="rr-a" cx="22" cy="22" r="16" fill="none" stroke="#EF9F27" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="31" stroke-linecap="round" transform="rotate(-90 22 22)" style="transition:all .6s"/></svg>
+        </div>
+        <div class="pw"><div id="pb-a" class="pf" style="width:69%;background:#EF9F27"></div></div>
+        <div class="ss">Prediction rate</div>
+      </div>
+      <div class="cd sc">
+        <div class="sl">BIAS INDEX</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="sv re" id="s-b">81</div>
+          <svg class="rsvg" viewBox="0 0 44 44"><circle cx="22" cy="22" r="16" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4"/><circle id="rr-b" cx="22" cy="22" r="16" fill="none" stroke="#ff7070" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="19" stroke-linecap="round" transform="rotate(-90 22 22)" style="transition:all .6s"/></svg>
+        </div>
+        <div class="pw"><div id="pb-b" class="pf" style="width:81%;background:#E24B4A"></div></div>
+        <div class="ss">Lower is better</div>
+      </div>
+      <div class="cd sc">
+        <div class="sl">STABILITY</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="sv ta" id="s-s">41</div>
+          <svg class="rsvg" viewBox="0 0 44 44"><circle cx="22" cy="22" r="16" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4"/><circle id="rr-s" cx="22" cy="22" r="16" fill="none" stroke="#EF9F27" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="59" stroke-linecap="round" transform="rotate(-90 22 22)" style="transition:all .6s"/></svg>
+        </div>
+        <div class="pw"><div id="pb-s" class="pf" style="width:41%;background:#EF9F27"></div></div>
+        <div class="ss">Cross-group</div>
+      </div>
+    </div>
+
+    <div class="cd">
+      <div class="cd-lbl">BIAS DNA — FEATURE INFECTION MAP</div>
+      <div id="dna-cloud"></div>
+    </div>
+
+    <div class="cd" style="overflow-y:auto">
+      <div class="cd-lbl">TOP BIAS CONTRIBUTORS</div>
+      <div id="bc-list"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ ANALYSIS ═══════ -->
+<section id="t-analysis" class="tc">
+<div class="fc">
+  <div class="cd">
+    <div class="cd-lbl">3D NEURAL BIAS NETWORK — DRAG TO ORBIT · NODES PULSE WITH BIAS INTENSITY</div>
+    <div class="cw" style="height:255px"><canvas id="c-neural" class="sc2"></canvas></div>
+    <div style="display:flex;gap:16px;margin-top:10px;font-size:10px;color:var(--txt3)">
+      <span>● <span class="re">RED</span> = Biased</span>
+      <span>● <span class="ta">AMBER</span> = Suspicious</span>
+      <span>● <span class="te">GREEN</span> = Fair</span>
+      <span style="margin-left:auto">18 nodes · <span id="an-e">24</span> edges · <span id="an-b">11</span> biased</span>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="cd">
+      <div class="cd-lbl">LIVE GROUP FAIRNESS SPLIT</div>
+      <div style="position:relative;height:185px"><canvas id="c-gc" role="img" aria-label="Group fairness bar chart">Group fairness split.</canvas></div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">INTERSECTIONALITY MATRIX</div>
+      <div id="ix-m"></div>
+      <div style="font-size:9px;color:var(--txt3);margin-top:8px">Fairness score for each demographic × age intersection</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ SIMULATOR ═══════ -->
+<section id="t-simulator" class="tc">
+<div class="g2" style="gap:14px">
+  <div class="fc">
+    <div class="cd">
+      <div class="cd-lbl">WHAT-IF PARAMETER CONTROLS</div>
+      <div id="sim-sl"></div>
+      <div style="border-top:1px solid var(--bd);padding-top:12px;margin-top:4px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px">
+          <div>
+            <div style="font-size:9px;color:var(--txt3);letter-spacing:.1em">PROJECTED FAIRNESS</div>
+            <div id="pf-v" style="font-size:32px;font-weight:800;color:#ff7070;line-height:1.1;transition:color .4s">34</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:9px;color:var(--txt3)">DELTA</div>
+            <div id="pf-d" style="font-size:18px;font-weight:700;color:var(--txt3)">±0</div>
+          </div>
+        </div>
+        <button id="fix-btn" class="btn bp" onclick="autoFix()">⚡ AUTO-FIX ENGINE</button>
+        <button class="btn bg2" onclick="hardReset()">↺ RESET ALL PARAMS</button>
+      </div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">BEFORE vs AFTER AUTO-FIX</div>
+      <div style="position:relative;height:155px"><canvas id="c-ba" role="img" aria-label="Before after comparison">Before after comparison.</canvas></div>
+    </div>
+  </div>
+  <div class="cd" style="display:flex;flex-direction:column">
+    <div class="cd-lbl">3D DNA HELIX — CLICK RED SPHERES TO FIX INFECTED FEATURES</div>
+    <div class="cw" style="flex:1;min-height:280px"><canvas id="c-helix" class="sc2"></canvas></div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;padding:0 2px">
+      <span class="tm">Total: <b style="color:var(--txt)">20</b></span>
+      <span class="re">Infected: <b id="hx-i">13</b></span>
+      <span class="te">Fixed: <b id="hx-f">0</b></span>
+    </div>
+    <button id="hr-btn" class="btn bg2" onclick="resetHelix()" style="margin-top:8px">↺ RESET HELIX</button>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ COMPLIANCE ═══════ -->
+<section id="t-compliance" class="tc">
+<div class="fc">
+  <div class="reg3">
+    <div class="cd">
+      <div class="cd-lbl">GDPR ART. 22</div>
+      <div id="r1-v" class="rg-s re">FAIL</div>
+      <div class="rg-d">Automated decisions must be explainable and demographically fair</div>
+      <div class="pw" style="margin-top:8px"><div id="r1-b" class="pf" style="width:34%;background:#E24B4A"></div></div>
+      <div id="r1-n" style="font-size:9px;color:var(--txt3);margin-top:5px">3 violations detected</div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">EU AI ACT</div>
+      <div id="r2-v" class="rg-s re">FAIL</div>
+      <div class="rg-d">High-risk AI systems must meet fairness thresholds before deployment</div>
+      <div class="pw" style="margin-top:8px"><div id="r2-b" class="pf" style="width:34%;background:#E24B4A"></div></div>
+      <div id="r2-n" style="font-size:9px;color:var(--txt3);margin-top:5px">2 critical gaps</div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">US EO 13985</div>
+      <div id="r3-v" class="rg-s re">FAIL</div>
+      <div class="rg-d">Equity required in all federal AI decision-making systems</div>
+      <div class="pw" style="margin-top:8px"><div id="r3-b" class="pf" style="width:34%;background:#E24B4A"></div></div>
+      <div id="r3-n" style="font-size:9px;color:var(--txt3);margin-top:5px">Disparity exceeds limit</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="cd">
+      <div class="cd-lbl">3D DEMOGRAPHIC GALAXY — DRAG TO ORBIT · CLUSTER SPREAD = BIAS DISPARITY</div>
+      <div class="cw" style="height:195px"><canvas id="c-gal" class="sc2"></canvas></div>
+      <div style="font-size:9px;color:var(--txt3);margin-top:8px;line-height:1.6">Wide cluster = high disparity. Tight cluster = equal treatment. Drag and zoom to explore.</div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">REQUIRED REMEDIATION ACTIONS</div>
+      <div>
+        <div class="ai"><span class="pill pr" style="flex-shrink:0">HIGH</span><span style="font-size:11px">Remove protected attribute proxies from training data</span></div>
+        <div class="ai"><span class="pill pr" style="flex-shrink:0">HIGH</span><span style="font-size:11px">Implement demographic parity across all gender groups</span></div>
+        <div class="ai"><span class="pill pa" style="flex-shrink:0">MED</span><span style="font-size:11px">Add SHAP-based model explainability layer</span></div>
+        <div class="ai"><span class="pill pa" style="flex-shrink:0">MED</span><span style="font-size:11px">Document fairness metrics in standardised model card</span></div>
+        <div class="ai"><span class="pill pp" style="flex-shrink:0">LOW</span><span style="font-size:11px">Schedule quarterly bias audits post-deployment</span></div>
+      </div>
+      <div style="border-top:1px solid var(--bd);padding-top:12px;margin-top:6px;display:flex;align-items:center;gap:14px">
+        <div>
+          <div style="font-size:9px;color:var(--txt3);letter-spacing:.1em">OVERALL SCORE</div>
+          <div id="co-s" style="font-size:28px;font-weight:800;color:#ff7070;line-height:1.1;transition:color .4s">34</div>
+        </div>
+        <div>
+          <div id="co-l" style="font-size:11px;font-weight:700;color:#ff7070;transition:color .4s">HIGH RISK — NOT DEPLOYABLE</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px">Fix bias in Simulator to unlock</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ ACHIEVEMENTS ═══════ -->
+<section id="t-achievements" class="tc">
+<div class="fc">
+  <div class="cd">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div><div class="cd-lbl">AI ETHICS CHAMPION</div><div id="ac-lv" style="font-size:28px;font-weight:800;color:#a09aff">LEVEL 3</div></div>
+      <div style="text-align:right"><div class="cd-lbl">TOTAL XP</div><div id="ac-xp" style="font-size:26px;font-weight:800">340</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <span style="font-size:9px;color:var(--txt3)">LV 3</span>
+      <div style="flex:1;height:10px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden;border:1px solid rgba(255,255,255,.04)">
+        <div id="ac-bar" class="pf" style="width:34%;background:linear-gradient(90deg,var(--pu2),var(--pu))"></div>
+      </div>
+      <span style="font-size:9px;color:var(--txt3)">LV 4</span>
+    </div>
+    <div style="font-size:10px;color:var(--txt3);text-align:center"><span id="ac-nx">660</span> XP to next level — keep fixing bias!</div>
+  </div>
+  <div class="g2">
+    <div class="cd">
+      <div class="cd-lbl">ACHIEVEMENT BADGES</div>
+      <div class="bdgr" id="bdg-grid"></div>
+    </div>
+    <div class="cd">
+      <div class="cd-lbl">LEVEL MILESTONES</div>
+      <div id="milestones"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+const S={gender:74,balance:30,thresh:42,age:60,race:70};
+let xp=340,baseF=34,orbMat=null;
+const SC={},CH={};
+let hxInf=0,hxFixed=0,hxSpheres=[];
+
+/* ── computed ── */
+const cF=()=>Math.max(5,Math.min(95,Math.round(100-(S.gender*.4+(100-S.balance)*.3+(100-S.thresh)*.2+S.age*.05+S.race*.05))));
+const cA=()=>Math.max(40,Math.min(94,Math.round(55+S.balance*.2+S.thresh*.1-S.gender*.05)));
+const cB=f=>Math.max(5,Math.min(95,Math.round(100-f*.8)));
+const cS=f=>Math.max(5,Math.min(95,Math.round(f*.65+S.thresh*.25)));
+function sCol(v,inv=false){const e=inv?100-v:v;return e>=65?'#2ed8a0':e>=45?'#ffb74d':'#ff7070'}
+function fInfo(f){
+  if(f>=75)return{t:'FAIR',pc:'pg',tc:'#2ed8a0',rc:'bdg-g',rl:'LOW RISK'};
+  if(f>=50)return{t:'MODERATE',pc:'pa',tc:'#ffb74d',rc:'bdg-r',rl:'MED RISK'};
+  return{t:'BIASED',pc:'pr',tc:'#ff7070',rc:'bdg-r',rl:'HIGH RISK'};
+}
+
+/* ── dom helpers ── */
+const $=id=>document.getElementById(id);
+const tx=(id,v)=>{const e=$(id);if(e)e.textContent=v};
+const st=(id,k,v)=>{const e=$(id);if(e)e.style[k]=v};
+const sc=(id,c)=>{const e=$(id);if(e)e.className=c};
+
+/* ══════════════════════════════════════════
+   MAIN UPDATE
+══════════════════════════════════════════ */
+function upd(){
+  const f=cF(),a=cA(),b=cB(f),s=cS(f);
+  const inf=fInfo(f);
+
+  // Stat cards
+  [['f',f,true],['a',a,true],['b',b,false],['s',s,true]].forEach(([k,v,hi])=>{
+    const c=sCol(v,!hi);
+    tx('s-'+k,v); st('s-'+k,'color',c);
+    st('pb-'+k,'width',v+'%'); st('pb-'+k,'background',c);
+    const rr=$('rr-'+k);
+    if(rr){rr.setAttribute('stroke',c);rr.setAttribute('stroke-dashoffset',Math.round(100*(1-v/100)))}
+  });
+
+  // Header
+  const lv=f>=85?8:f>=75?7:f>=65?6:f>=55?5:f>=45?4:3;
+  tx('h-lv','LV '+lv); tx('h-xp',xp);
+  st('h-xpb','width',Math.min(100,xp%100)+'%');
+  const hr=$('h-risk'); if(hr){hr.textContent=inf.rl;hr.className='hbdg '+inf.rc}
+
+  // Arena state badge
+  const asb=$('a-st'); if(asb){asb.textContent=inf.t;asb.className='pill '+inf.pc}
+  tx('sv-fo',f);
+
+  // Simulator
+  const pf=$('pf-v'),pd=$('pf-d');
+  if(pf){pf.textContent=f;pf.style.color=inf.tc}
+  if(pd){const d=f-34;pd.textContent=(d>=0?'+':'')+d;pd.style.color=d>0?'#2ed8a0':d<0?'#ff7070':'var(--txt3)'}
+
+  // Compliance
+  const cp=f>=75,cm=f>=50;
+  [[1,cp,'GDPR clear','3 violations'],[2,cp,'Threshold met','2 critical gaps'],[3,cm,'Within limit','Disparity exceeds']].forEach(([i,ok,y,n])=>{
+    const c=ok?'#2ed8a0':'#ff7070';
+    tx('r'+i+'-v',ok?'PASS':'FAIL'); st('r'+i+'-v','color',c);
+    st('r'+i+'-b','width',f+'%'); st('r'+i+'-b','background',ok?'#1D9E75':'#E24B4A');
+    tx('r'+i+'-n',ok?y:n);
+  });
+  tx('co-s',f); st('co-s','color',inf.tc);
+  const cl=$('co-l'); if(cl){cl.textContent=cp?'LOW RISK — DEPLOYABLE':cm?'MEDIUM RISK — REVIEW':'HIGH RISK — NOT DEPLOYABLE';cl.style.color=inf.tc}
+
+  // Sub-renders
+  rdna(); rbc(); rix(f); rach(f,lv); updCharts(f,a,b,s);
+  if(orbMat) setOrbCol(f);
+}
+
+/* ══════════════════════════════════════════
+   DNA CLOUD
+══════════════════════════════════════════ */
+function rdna(){
+  const d=$('dna-cloud'); if(!d) return;
+  const fv={Gender:S.gender,Age:S.age,Race:S.race,Edu:35,Zip:Math.round((100-S.balance)*.65),Income:45,Name:Math.round(S.race*.7),History:38,Region:Math.round((100-S.balance)*.5),Score:S.thresh};
+  d.innerHTML=Object.entries(fv).map(([k,v])=>{
+    const[bg,tc]=v>60?['rgba(226,75,74,.14)','#ff7070']:v>35?['rgba(239,159,39,.12)','#ffb74d']:['rgba(29,158,117,.12)','#2ed8a0'];
+    return`<span class="dt" style="background:${bg};color:${tc};border-color:${tc}30">${k} ${v}%</span>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   BIAS CONTRIBUTORS
+══════════════════════════════════════════ */
+function rbc(){
+  const d=$('bc-list'); if(!d) return;
+  const data=[
+    {n:'Gender feature',v:Math.round(S.gender*.9)},
+    {n:'Race proxy',     v:Math.round(S.race*.85)},
+    {n:'Zip code bias',  v:Math.round((100-S.balance)*.7)},
+    {n:'Age binning',    v:Math.round(S.age*.75)},
+    {n:'Name encoding',  v:Math.round(S.race*.5)},
+  ].sort((a,b)=>b.v-a.v);
+  d.innerHTML=data.map(b=>{
+    const c=b.v>60?'#ff7070':b.v>40?'#ffb74d':'#2ed8a0';
+    return`<div class="bc-r"><span style="font-size:11px;color:var(--txt2)">${b.n}</span><div style="display:flex;align-items:center;gap:7px"><div class="bc-bw"><div class="bc-bf" style="width:${b.v}%;background:${c}"></div></div><span style="font-size:10px;font-weight:700;color:${c};min-width:26px;text-align:right">${b.v}%</span></div></div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   INTERSECTIONALITY
+══════════════════════════════════════════ */
+function rix(f){
+  const d=$('ix-m'); if(!d) return;
+  const g=['Male','Female','NB'],a=['18-30','31-54','55+'];
+  const rows=[
+    [Math.min(95,f+20),Math.max(5,f-5),Math.min(95,f+10)],
+    [Math.max(5,f-25),Math.max(5,f-30),Math.max(5,f-35)],
+    [Math.min(95,f+15),Math.max(5,f-10),Math.min(95,f+5)],
+  ];
+  d.innerHTML=`<div class="ixg"><div></div>${a.map(x=>`<div class="ixh">${x}</div>`).join('')}${g.map((x,i)=>`<div class="ixh" style="justify-content:flex-start;padding-right:4px">${x}</div>${rows[i].map(v=>{const[bg,tc]=v>=65?['rgba(29,158,117,.15)','#2ed8a0']:v>=45?['rgba(239,159,39,.12)','#ffb74d']:['rgba(226,75,74,.12)','#ff7070'];return`<div class="ixc" style="background:${bg};color:${tc}">${v}</div>`}).join('')}`).join('')}</div>`;
+}
+
+/* ══════════════════════════════════════════
+   ACHIEVEMENTS
+══════════════════════════════════════════ */
+const BADGES=[
+  {k:'◈',t:'First Contact',d:'Ran first bias scan',xp:50,fn:()=>true},
+  {k:'⬡',t:'Genome Mapper',d:'Mapped 10 features',xp:100,fn:()=>true},
+  {k:'⚙',t:'What-If Master',d:'Used simulator',xp:90,fn:()=>true},
+  {k:'⚡',t:'Fixer Upper',d:'Used Auto-Fix engine',xp:200,fn:f=>f>=60},
+  {k:'★',t:'Fairness Hero',d:'Fairness score 80+',xp:300,fn:f=>f>=80},
+  {k:'⚖',t:'Law Abider',d:'Pass all 3 regs',xp:500,fn:f=>f>=75},
+];
+const MILES=[
+  {lv:1,t:'Bias Novice',d:'First scan complete'},
+  {lv:2,t:'Pattern Spotter',d:'Detected 3+ sources'},
+  {lv:3,t:'System Challenger',d:'Used What-If Simulator'},
+  {lv:5,t:'Fairness Engineer',d:'Achieve Fairness 80+'},
+  {lv:7,t:'Ethics Champion',d:'Pass all 3 regulations'},
+  {lv:10,t:'AI Guardian',d:'Deploy fair AI system'},
+];
+function rach(f,lv){
+  tx('ac-lv','LEVEL '+lv); tx('ac-xp',xp); tx('ac-nx',Math.max(0,1000-xp));
+  st('ac-bar','width',Math.min(100,xp%100)+'%');
+  const bg=$('bdg-grid');
+  if(bg) bg.innerHTML=BADGES.map(b=>{const ok=b.fn(f);return`<div class="bdi${ok?' ok':''}" style="opacity:${ok?1:.3}"><div class="bdi-ic" style="color:${ok?'#a09aff':'var(--txt3)'}">${b.k}</div><div class="bdi-n">${b.t}</div><div class="bdi-d">${b.d}</div><div class="bdi-x">+${b.xp} XP</div></div>`}).join('');
+  const md=$('milestones');
+  if(md) md.innerHTML=MILES.map(m=>{const done=lv>m.lv,cur=lv===m.lv;const c=done?'#2ed8a0':cur?'#a09aff':'var(--txt3)';return`<div class="mi"><div class="mi-lv" style="color:${c}">LV${m.lv}</div><div><div class="mi-t" style="color:${done||cur?'var(--txt)':'var(--txt3)'}">${m.t}</div><div class="mi-d">${m.d}</div></div><span class="pill ${done?'pg':cur?'pp':''}" style="margin-left:auto;flex-shrink:0">${done?'DONE':cur?'NOW':'—'}</span></div>`}).join('');
+}
+
+/* ══════════════════════════════════════════
+   CHARTS
+══════════════════════════════════════════ */
+function gdData(f){return[Math.min(95,Math.round(f+(100-S.gender)*.12)),Math.max(5,Math.round(f-S.gender*.22+12)),Math.min(95,Math.round(f+(100-S.age)*.1)),Math.max(5,Math.round(f-S.age*.18+8)),Math.min(95,Math.round(f+S.balance*.08)),Math.max(5,Math.round(f-S.balance*.12+5))]}
+function initGC(f){
+  const el=$('c-gc'); if(!el||CH.gc) return;
+  const gd=gdData(f);
+  CH.gc=new Chart(el.getContext('2d'),{type:'bar',data:{labels:['Male','Female','18-30','55+','Urban','Rural'],datasets:[{data:gd,backgroundColor:gd.map(v=>v>=65?'rgba(29,158,117,.55)':v>=45?'rgba(239,159,39,.55)':'rgba(226,75,74,.55)'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(200,200,224,.4)',font:{size:10}}},x:{grid:{display:false},ticks:{color:'rgba(200,200,224,.4)',font:{size:10}}}}}});
+}
+function initBA(){
+  const el=$('c-ba'); if(!el||CH.ba) return;
+  CH.ba=new Chart(el.getContext('2d'),{type:'bar',data:{labels:['Fairness','Accuracy','Bias Idx','Disparity'],datasets:[{label:'Current',data:[34,69,81,74],backgroundColor:'rgba(226,75,74,.5)',borderRadius:4},{label:'After Fix',data:[85,82,15,12],backgroundColor:'rgba(29,158,117,.5)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(200,200,224,.4)',font:{size:10}}},x:{grid:{display:false},ticks:{color:'rgba(200,200,224,.4)',font:{size:10}}}}}});
+}
+function updCharts(f,a,b,s){
+  if(CH.gc){const gd=gdData(f);CH.gc.data.datasets[0].data=gd;CH.gc.data.datasets[0].backgroundColor=gd.map(v=>v>=65?'rgba(29,158,117,.55)':v>=45?'rgba(239,159,39,.55)':'rgba(226,75,74,.55)');CH.gc.update('none')}
+  if(CH.ba){CH.ba.data.datasets[0].data=[f,a,b,Math.round(S.gender*.9)];CH.ba.update('none')}
+}
+
+/* ══════════════════════════════════════════
+   THREE.JS FACTORY
+══════════════════════════════════════════ */
+function mkR(c){
+  const r=new THREE.WebGLRenderer({canvas:c,antialias:true,alpha:true});
+  r.setClearColor(0,0); r.setPixelRatio(Math.min(devicePixelRatio,2));
+  r.setSize(c.clientWidth||400,c.clientHeight||300,false);
+  return r;
+}
+function drag3D(canvas,onDrag){
+  let mx=0,my=0,dn=false;
+  canvas.addEventListener('mousedown',e=>{dn=true;mx=e.clientX;my=e.clientY});
+  canvas.addEventListener('mousemove',e=>{if(dn)onDrag(e.clientX-mx,e.clientY-my);mx=e.clientX;my=e.clientY});
+  canvas.addEventListener('mouseup',()=>dn=false);
+  canvas.addEventListener('mouseleave',()=>dn=false);
+}
+
+/* ── ORB ── */
+function initOrb(){
+  const c=$('c-orb'); if(!c||SC.orb) return;
+  const W=c.clientWidth||260,H=c.clientHeight||320;
+  const r=new THREE.WebGLRenderer({canvas:c,antialias:true,alpha:true});
+  r.setClearColor(0,0); r.setPixelRatio(Math.min(devicePixelRatio,2)); r.setSize(W,H,false);
+  const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(60,W/H,.1,50);
+  cam.position.z=3.7;
+
+  const geo=new THREE.IcosahedronGeometry(1,3);
+  const mat=new THREE.MeshPhongMaterial({color:0xE24B4A,shininess:160,emissive:0x1a0000});
+  const orb=new THREE.Mesh(geo,mat); scene.add(orb);
+
+  const wmat=new THREE.MeshBasicMaterial({wireframe:true,transparent:true,opacity:.18,color:0xff4444});
+  scene.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.09,1),wmat));
+
+  const rmat=new THREE.MeshBasicMaterial({color:0xff4444,transparent:true,opacity:.5});
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.62,.022,8,80),rmat);
+  ring.rotation.x=Math.PI*.38; scene.add(ring);
+
+  const r2mat=new THREE.MeshBasicMaterial({color:0xff6644,transparent:true,opacity:.25});
+  const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.35,.012,8,60),r2mat);
+  ring2.rotation.x=Math.PI*.65; ring2.rotation.y=Math.PI*.2; scene.add(ring2);
+
+  const pp=new Float32Array(600*3);
+  for(let i=0;i<600;i++){const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),rv=1.5+Math.random()*.8;pp[i*3]=rv*Math.sin(p)*Math.cos(t);pp[i*3+1]=rv*Math.sin(p)*Math.sin(t);pp[i*3+2]=rv*Math.cos(p)}
+  const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+  const pmat=new THREE.PointsMaterial({color:0xff4444,size:.02,sizeAttenuation:true});
+  const pts=new THREE.Points(pg,pmat); scene.add(pts);
+
+  scene.add(new THREE.AmbientLight(0x111122));
+  const pl=new THREE.PointLight(0xff4444,2,10); scene.add(pl);
+  const pl2=new THREE.PointLight(0xffffff,.8,10); pl2.position.set(3,3,3); scene.add(pl2);
+
+  orbMat={mat,wmat,rmat,r2mat,pmat};
+
+  let rx=0,ry=0;
+  drag3D(c,(dx,dy)=>{ry+=dx*.006;rx+=dy*.006});
+
+  let aid;
+  (function anim(t){
+    aid=requestAnimationFrame(anim);
+    orb.rotation.y=ry+t*.00035; orb.rotation.x=rx;
+    ring.rotation.z=t*.00022; ring2.rotation.y=t*.00018;
+    pts.rotation.y=ry+t*.0001; pts.rotation.x=rx*.5;
+    pl.position.x=Math.cos(t*.0007)*3.5; pl.position.z=Math.sin(t*.0007)*3.5;
+    orb.scale.setScalar(1+Math.sin(t*.0015)*.03);
+    r.render(scene,cam);
+  })(0);
+  SC.orb={stop:()=>cancelAnimationFrame(aid)};
+}
+
+function setOrbCol(f){
+  if(!orbMat) return;
+  const rv=f<50?1:Math.max(0,1-(f-50)/50*1.2);
+  const gv=f<50?(f/50)*.62:Math.min(1,.62+(f-50)/50*.38);
+  const col=new THREE.Color(rv,gv*.9,0);
+  orbMat.mat.color.copy(col); orbMat.mat.emissive.setRGB(rv*.2,gv*.08,0);
+  orbMat.wmat.color.copy(col); orbMat.rmat.color.copy(col);
+  orbMat.r2mat.color.copy(col); orbMat.pmat.color.copy(col);
+}
+
+/* ── NEURAL ── */
+function initNeural(){
+  const c=$('c-neural'); if(!c||SC.neural) return;
+  const W=c.clientWidth||600,H=255;
+  const r=mkR(c); r.setSize(W,H,false);
+  const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(60,W/H,.1,50);
+  cam.position.z=5.8;
+  const grp=new THREE.Group(); scene.add(grp);
+
+  const bv=[.92,.82,.76,.7,.64,.58,.52,.44,.38,.31,.24,.18,.88,.78,.11,.14,.06,.73];
+  const pos=[];
+  bv.forEach((b,i)=>{
+    const col=b>.6?0xE24B4A:b>.35?0xEF9F27:0x1D9E75;
+    const emi=b>.6?0x130000:b>.35?0x080500:0x00080;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(.14+b*.06,12,12),new THREE.MeshPhongMaterial({color:col,emissive:emi,shininess:80}));
+    const p=new THREE.Vector3((Math.random()-.5)*5.5,(Math.random()-.5)*4,(Math.random()-.5)*3.5);
+    m.position.copy(p); pos.push(p); grp.add(m);
+  });
+  const ep=[];
+  for(let a=0;a<bv.length;a++) for(let b=a+1;b<bv.length;b++) if(pos[a].distanceTo(pos[b])<2.7) ep.push(pos[a].clone(),pos[b].clone());
+  grp.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ep),new THREE.LineBasicMaterial({color:0x191944,transparent:true,opacity:.6})));
+  tx('an-e',Math.floor(ep.length/2)); tx('an-b',bv.filter(v=>v>.6).length);
+
+  scene.add(new THREE.AmbientLight(0x111122));
+  const l1=new THREE.PointLight(0x5555ff,1.2,20); l1.position.set(5,5,5); scene.add(l1);
+  const l2=new THREE.PointLight(0xff3333,.5,20); l2.position.set(-5,-3,-5); scene.add(l2);
+
+  let rx=0,ry=0;
+  drag3D(c,(dx,dy)=>{ry+=dx*.006;rx+=dy*.006});
+
+  let aid;
+  (function anim(t){
+    aid=requestAnimationFrame(anim);
+    grp.rotation.y=ry+t*.00025; grp.rotation.x=rx+Math.sin(t*.0003)*.12;
+    bv.forEach((b,i)=>{const m=grp.children[i];if(m&&m.isMesh)m.scale.setScalar(1+Math.sin(t*.002+i*.72)*.18*b)});
+    r.render(scene,cam);
+  })(0);
+  SC.neural={stop:()=>cancelAnimationFrame(aid)};
+}
+
+/* ── HELIX ── */
+function initHelix(){
+  const c=$('c-helix'); if(!c||SC.helix) return;
+  const W=c.clientWidth||400,H=c.clientHeight||340;
+  const r=mkR(c); r.setSize(W,H,false);
+  const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(55,W/H,.1,50);
+  cam.position.z=6;
+  const grp=new THREE.Group(); scene.add(grp);
+
+  hxSpheres=[]; hxInf=0; hxFixed=0;
+  const N=20; const sA=[],sB=[];
+  for(let i=0;i<N;i++){
+    const t=(i/(N-1))*Math.PI*4,y=(i/(N-1))*4.8-2.4;
+    const inf=Math.random()>.38; if(inf) hxInf++;
+    const mA=new THREE.MeshPhongMaterial({color:inf?0xE24B4A:0x1D9E75,emissive:inf?0x130000:0x000b06,shininess:90});
+    const sp=new THREE.Mesh(new THREE.SphereGeometry(.15,12,12),mA);
+    sp.position.set(Math.cos(t)*1.15,y,Math.sin(t)*1.15);
+    sp.userData={inf,fixed:false}; hxSpheres.push(sp); grp.add(sp); sA.push(sp.position.clone());
+    const spB=new THREE.Mesh(new THREE.SphereGeometry(.11,10,10),new THREE.MeshPhongMaterial({color:0x7F77DD,emissive:0x080010,shininess:80}));
+    spB.position.set(Math.cos(t+Math.PI)*1.15,y,Math.sin(t+Math.PI)*1.15);
+    grp.add(spB); sB.push(spB.position.clone());
+    grp.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([sp.position.clone(),spB.position.clone()]),new THREE.LineBasicMaterial({color:0x1a1a44,transparent:true,opacity:.45})));
+  }
+  grp.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sA),80,.018,6,false),new THREE.MeshBasicMaterial({color:0x331122,transparent:true,opacity:.28})));
+  grp.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sB),80,.018,6,false),new THREE.MeshBasicMaterial({color:0x112233,transparent:true,opacity:.28})));
+
+  tx('hx-i',hxInf); tx('hx-f',0);
+  scene.add(new THREE.AmbientLight(0x111122));
+  const la=new THREE.PointLight(0xff3333,1,15); la.position.set(3,2,3); scene.add(la);
+  const lb=new THREE.PointLight(0x3333ff,.8,15); lb.position.set(-3,-2,-3); scene.add(lb);
+  const lc=new THREE.PointLight(0xffffff,.5,15); lc.position.set(0,5,0); scene.add(lc);
+
+  const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();
+  function click(e){
+    const rect=c.getBoundingClientRect();
+    mouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+    mouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+    ray.setFromCamera(mouse,cam);
+    const hits=ray.intersectObjects(hxSpheres);
+    if(hits.length&&hits[0].object.userData.inf&&!hits[0].object.userData.fixed){
+      hits[0].object.material.color.setHex(0x1D9E75);
+      hits[0].object.material.emissive.setHex(0x000b06);
+      hits[0].object.userData.fixed=true;
+      hxFixed++; xp+=30;
+      tx('hx-f',hxFixed); tx('hx-i',hxInf-hxFixed); tx('h-xp',xp);
+      if(hxFixed>=hxInf){const b=$('hr-btn');if(b){b.textContent='✓ ALL FIXED';b.className='btn bs'}}
+    }
+  }
+  c.addEventListener('click',click);
+
+  let aid;
+  (function anim(t){
+    aid=requestAnimationFrame(anim);
+    grp.rotation.y=t*.00048;
+    hxSpheres.forEach((s,i)=>{if(s.userData.inf&&!s.userData.fixed)s.scale.setScalar(1+Math.sin(t*.002+i*.55)*.12)});
+    r.render(scene,cam);
+  })(0);
+  SC.helix={stop:()=>{cancelAnimationFrame(aid);c.removeEventListener('click',click)}};
+}
+
+function resetHelix(){
+  if(SC.helix){SC.helix.stop();delete SC.helix}
+  hxFixed=0; hxInf=0; hxSpheres=[];
+  const b=$('hr-btn'); if(b){b.textContent='↺ RESET HELIX';b.className='btn bg2'}
+  setTimeout(initHelix,50);
+}
+
+/* ── GALAXY ── */
+function initGalaxy(){
+  const c=$('c-gal'); if(!c||SC.gal) return;
+  const W=c.clientWidth||400,H=195;
+  const r=mkR(c); r.setSize(W,H,false);
+  const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(65,W/H,.1,100);
+  cam.position.z=7.5;
+  const grps=[
+    {col:0x7F77DD,cx:1.5,cy:0,cz:0,sp:.55},
+    {col:0xD4537E,cx:-2.2,cy:.6,cz:.4,sp:1.35},
+    {col:0x1D9E75,cx:0,cy:1.9,cz:.2,sp:.5},
+    {col:0xE24B4A,cx:.5,cy:-2,cz:-.9,sp:1.45},
+    {col:0x5DCAA5,cx:-.4,cy:0,cz:2.1,sp:.55},
+    {col:0xEF9F27,cx:.9,cy:.3,cz:-2.3,sp:1.35},
+  ];
+  grps.forEach(g=>{
+    const p=new Float32Array(80*3);
+    for(let i=0;i<80;i++){p[i*3]=g.cx+(Math.random()-.5)*g.sp*2;p[i*3+1]=g.cy+(Math.random()-.5)*g.sp*2;p[i*3+2]=g.cz+(Math.random()-.5)*g.sp*2}
+    const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(p,3));
+    scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:g.col,size:.052,sizeAttenuation:true,transparent:true,opacity:.92})));
+  });
+
+  let rx=0,ry=0;
+  drag3D(c,(dx,dy)=>{ry+=dx*.006;rx+=dy*.004});
+
+  let aid;
+  (function anim(t){
+    aid=requestAnimationFrame(anim);
+    scene.rotation.y=ry+t*.00018; scene.rotation.x=rx+Math.sin(t*.00025)*.07;
+    r.render(scene,cam);
+  })(0);
+  SC.gal={stop:()=>cancelAnimationFrame(aid)};
+}
+
+/* ══════════════════════════════════════════
+   SLIDERS (SIMULATOR)
+══════════════════════════════════════════ */
+const SDEFS=[
+  {k:'gender',l:'Gender influence'},
+  {k:'balance',l:'Feature balance'},
+  {k:'thresh',l:'Threshold calibration'},
+  {k:'age',l:'Age weighting'},
+  {k:'race',l:'Race sensitivity'},
+];
+function buildSliders(){
+  const d=$('sim-sl'); if(!d) return;
+  d.innerHTML=SDEFS.map(s=>`<div class="sw"><div class="sl-r"><span>${s.l}</span><span id="sv-${s.k}">${S[s.k]}%</span></div><input type="range" id="sl-${s.k}" min="0" max="100" value="${S[s.k]}" step="1"></div>`).join('');
+  SDEFS.forEach(s=>{
+    const sl=$('sl-'+s.k),sv=$('sv-'+s.k);
+    if(sl) sl.addEventListener('input',()=>{S[s.k]=+sl.value;if(sv)sv.textContent=sl.value+'%';upd()});
+  });
+}
+
+/* ══════════════════════════════════════════
+   FAIRNESS OVERRIDE (ARENA)
+══════════════════════════════════════════ */
+function setFairness(v){
+  const scale=(v-34)/61;
+  S.gender=Math.max(0,Math.min(100,Math.round(74-scale*64)));
+  S.balance=Math.max(0,Math.min(100,Math.round(30+scale*60)));
+  S.thresh=Math.max(0,Math.min(100,Math.round(42+scale*38)));
+  S.age=Math.max(0,Math.min(100,Math.round(60-scale*48)));
+  S.race=Math.max(0,Math.min(100,Math.round(70-scale*58)));
+  SDEFS.forEach(s=>{const sl=$('sl-'+s.k),sv=$('sv-'+s.k);if(sl)sl.value=S[s.k];if(sv)sv.textContent=S[s.k]+'%'});
+  if(v>baseF+2){xp+=Math.round((v-baseF)*4);baseF=v}
+  upd();
+}
+
+/* ══════════════════════════════════════════
+   AUTO-FIX
+══════════════════════════════════════════ */
+function autoFix(){
+  const btn=$('fix-btn'); if(!btn) return;
+  btn.textContent='⚡ FIXING...'; btn.disabled=true;
+  const tg={gender:10,balance:92,thresh:82,age:10,race:10};
+  const st0={...S}; let step=0;
+  const iv=setInterval(()=>{
+    step++;
+    const t=step/45,e=t<.5?2*t*t:-1+(4-2*t)*t;
+    SDEFS.forEach(({k})=>{
+      S[k]=Math.round(st0[k]+(tg[k]-st0[k])*e);
+      const sl=$('sl-'+k);if(sl)sl.value=S[k];
+      const sv=$('sv-'+k);if(sv)sv.textContent=S[k]+'%';
+    });
+    // Also sync arena slider
+    const fo=$('sl-fo');if(fo)fo.value=cF();tx('sv-fo',cF());
+    upd();
+    if(step>=45){
+      clearInterval(iv);
+      btn.textContent='✓ SYSTEM FIXED';btn.className='btn bs';btn.disabled=false;
+      xp+=500;tx('h-xp',xp);
+    }
+  },35);
+}
+
+function hardReset(){location.reload()}
+
+/* ══════════════════════════════════════════
+   TAB SWITCHING
+══════════════════════════════════════════ */
+function go(id,btn){
+  document.querySelectorAll('.tc').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  const tc=$('t-'+id); if(tc) tc.classList.add('on');
+  if(btn) btn.classList.add('on');
+
+  requestAnimationFrame(()=>{
+    if(id==='arena')    initOrb();
+    if(id==='analysis'){initNeural();initGC(cF())}
+    if(id==='simulator'){initHelix();initBA();buildSliders()}
+    if(id==='compliance') initGalaxy();
+    upd();
+  });
+}
+
+/* ══════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════ */
+window.addEventListener('load',()=>{
+  buildSliders();
+  rdna();rbc();rix(cF());rach(cF(),3);
+  requestAnimationFrame(initOrb);
+});
+</script>
+</body>
+</html>
