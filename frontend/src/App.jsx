@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import useEquiLens from './store/useEquiLens';
 import ArenaPanel from './components/ArenaPanel';
 import UploadSection from './components/UploadSection';
+import DemoMode from './components/DemoMode';
 import './index.css';
 
 const FloatingTagCloud   = lazy(() => import('./components/FloatingTagCloud'));
@@ -45,7 +46,9 @@ const Header = () => {
       </div>
       <div style={{ flex: 1 }} />
       <UploadSection />
-      <div style={{ width: '14px' }} />
+      <div style={{ width: '10px' }} />
+      <DemoMode />
+      <div style={{ width: '10px' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
         <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-purple)', padding: '2px 8px', borderRadius: '4px', background: 'rgba(127,119,221,.12)', border: '1px solid rgba(127,119,221,.22)' }}>
           {lvLabel}

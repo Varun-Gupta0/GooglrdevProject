@@ -1,302 +1,386 @@
-import React, { useState, useEffect, useRef } from 'react';
-import useEquiLens from '../store/useEquiLens';
+/**
+ * AIInsightPanel.jsx  v4
+ * Adds: mechanism ("Why this works"), confidence_reason, preview-before-apply,
+ * FinalSummaryPanel, action history push, micro-UX polish.
+ */
 
-// ── OpenRouter API call ────────────────────────────────────────────────────────
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useEquiLens from '../store/useEquiLens';
+import generateInsights, { computeConfidence, getSeverity, buildConfidenceReason } from '../utils/generateInsights';
+import SystemStatus from './SystemStatus';
+import ChangeFeedbackPanel from './ChangeFeedbackPanel';
+import FinalSummaryPanel from './FinalSummaryPanel';
+
+// ── OpenRouter (optional fallback path) ───────────────────────────────────────
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
-console.log("🔍 [EquiLens Debug] Environment Variables:", import.meta.env);
+const HAS_API_KEY    = !!OPENROUTER_KEY && !OPENROUTER_KEY.includes('your_openrouter');
 
 const callOpenRouter = async (scorecard) => {
-  const top3 = (scorecard.bias_contributors || [])
-    .slice(0, 3)
-    .map(c => `${c.feature} (score: ${c.score}, severity: ${c.severity ?? 'N/A'})`)
-    .join('; ');
-
-  const groups = (scorecard.group_fairness || [])
-    .map(g => `${g.name}: ${g.fairness}%`)
-    .join(', ');
-
-  const prompt = `You are an expert AI fairness auditor. Analyze this hiring model.
-
-Fairness Score: ${scorecard.fairness_score}/100
-Top Bias Contributors: ${top3 || 'unknown'}
-Group Selection Rates: ${groups || 'unknown'}
-
-Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
-{
-  "diagnosis": "2-3 sentence description of the bias detected",
-  "cause": "2-3 sentence explanation of why this bias exists",
-  "suggestions": [
-    {
-      "action": "Short action title",
-      "impact": "Expected improvement",
-      "implementation": "Concrete step to take",
-      "paramAdjustments": { "gender": 20, "balance": 80 }
-    }
-  ]
-}
-
-The paramAdjustments must be a subset of these keys: gender (0-100), balance (0-100), thresh (0-100), age (0-100), race (0-100).
-Lower gender/age/race = less influence from that attribute. Higher balance/thresh = fairer outcomes.
-Provide 3 suggestions.`;
-
+  const top3   = (scorecard.bias_contributors || []).slice(0, 3).map(c => `${c.feature} (bias: ${c.score ?? 0}/100)`).join('; ');
+  const groups = (scorecard.group_fairness || []).map(g => `${g.name}: ${g.fairness}%`).join(', ');
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENROUTER_KEY}`,
-      'HTTP-Referer': window.location.origin,
-      'X-Title': 'EquiLens AI Ethics Dashboard',
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENROUTER_KEY}`, 'HTTP-Referer': window.location.origin, 'X-Title': 'EquiLens' },
     body: JSON.stringify({
       model: 'meta-llama/llama-3.3-70b-instruct:free',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
-      temperature: 0.1,
+      messages: [{ role: 'user', content: `Fairness audit. Score: ${scorecard.fairness_score}/100. Bias: ${top3}. Groups: ${groups}.\nRespond ONLY as JSON with keys: diagnosis, cause, confidence, confidence_reason, severity, actions[]{instruction,reason,mechanism,before,after,expected_result,paramAdjustments}` }],
+      max_tokens: 1000, temperature: 0.05,
     }),
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`OpenRouter ${res.status}: ${errText}`);
-  }
-
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
   const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content?.trim() ?? '{}';
-  
-  // Robust cleaning: Find the first { and last } to extract JSON even if there is filler text
-  const startIdx = raw.indexOf('{');
-  const endIdx = raw.lastIndexOf('}');
-  if (startIdx === -1 || endIdx === -1) throw new Error("AI response did not contain valid JSON");
-  
-  const clean = raw.slice(startIdx, endIdx + 1);
-  return JSON.parse(clean);
+  const raw  = data.choices?.[0]?.message?.content?.trim() ?? '{}';
+  const s    = raw.indexOf('{'), e = raw.lastIndexOf('}');
+  if (s === -1) throw new Error('Bad JSON');
+  const p = JSON.parse(raw.slice(s, e + 1));
+  if (p.suggestions && !p.actions) p.actions = p.suggestions;
+  return p;
 };
 
-// ── Typewriter effect ──────────────────────────────────────────────────────────
-const Typewriter = ({ text, delay = 0, speed = 16 }) => {
-  const [out, setOut] = useState('');
-  const ref = useRef(0);
-
-  useEffect(() => {
-    setOut('');
-    ref.current = 0;
-    if (!text) return;
-    const t = setTimeout(() => {
-      const i = setInterval(() => {
-        ref.current++;
-        setOut(text.slice(0, ref.current));
-        if (ref.current >= text.length) clearInterval(i);
-      }, speed);
-      return () => clearInterval(i);
-    }, delay);
-    return () => clearTimeout(t);
-  }, [text]);
-
-  return <>{out}</>;
+// ── Shared constants ──────────────────────────────────────────────────────────
+const SEV = {
+  CRITICAL: { color: '#ff7070', bg: 'rgba(255,112,112,0.08)' },
+  HIGH:     { color: '#ffb74d', bg: 'rgba(255,183,77,0.08)'  },
+  MODERATE: { color: '#a09aff', bg: 'rgba(160,154,255,0.08)' },
+  LOW:      { color: '#2ed8a0', bg: 'rgba(46,216,160,0.08)'  },
 };
+const sm = (s) => SEV[s] ?? SEV.MODERATE;
+const CARD_COLORS = ['#ff7070', '#ffb74d', '#a09aff', '#2ed8a0'];
 
-// ── Suggestion Card ────────────────────────────────────────────────────────────
-const SuggestionCard = ({ suggestion, index, onApply, applied }) => {
-  const COLORS = ['#a09aff', '#2ed8a0', '#ffb74d'];
-  const col = COLORS[index % COLORS.length];
+// ── Sub-components ────────────────────────────────────────────────────────────
 
+const ConfidenceMeter = ({ value, reason }) => {
+  const [open, setOpen] = useState(false);
+  const col = value >= 85 ? '#2ed8a0' : value >= 70 ? '#a09aff' : '#ffb74d';
   return (
-    <div style={{
-      background: applied ? `${col}10` : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${applied ? col + '44' : 'rgba(255,255,255,0.07)'}`,
-      borderRadius: '8px', padding: '12px 14px',
-      transition: 'all 0.4s',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 700, color: col, flex: 1 }}>
-          {suggestion.action}
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: reason ? 'pointer' : 'default' }}
+           onClick={() => reason && setOpen(o => !o)}>
+        <span style={{ fontSize: '9px', color: 'rgba(200,200,224,0.35)', letterSpacing: '0.08em', minWidth: '68px' }}>CONFIDENCE</span>
+        <div style={{ flex: 1, height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${value}%`, background: col, borderRadius: '2px', transition: 'width 0.8s cubic-bezier(0.22,1,0.36,1), background 0.4s' }} />
         </div>
-        <button
-          onClick={() => onApply(suggestion)}
-          disabled={applied}
-          style={{
-            padding: '3px 10px', borderRadius: '4px', fontSize: '9px', fontWeight: 700,
-            letterSpacing: '0.07em', cursor: applied ? 'default' : 'pointer',
-            border: `1px solid ${col}55`, background: applied ? `${col}22` : 'transparent',
-            color: applied ? col : 'rgba(200,200,224,0.5)', fontFamily: 'inherit',
-            transition: 'all 0.3s', marginLeft: '10px', flexShrink: 0,
-          }}
-        >
-          {applied ? '✓ APPLIED' : 'APPLY FIX'}
-        </button>
+        <span style={{ fontSize: '9px', fontWeight: 700, color: col, minWidth: '28px', textAlign: 'right' }}>{value}%</span>
+        {reason && <span style={{ fontSize: '8px', color: 'rgba(200,200,224,0.25)' }}>{open ? '▲' : '▼'}</span>}
       </div>
-      <div style={{ fontSize: '10px', color: 'rgba(220,220,240,0.55)', marginBottom: '5px' }}>
-        <span style={{ color, fontWeight: 600 }}>Impact: </span>{suggestion.impact}
+      {open && reason && (
+        <div style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '6px', background: `${col}09`, border: `1px solid ${col}22`, fontSize: '10px', color: 'rgba(200,200,224,0.55)', lineHeight: 1.65, animation: 'ai-fadein 0.25s ease' }}>
+          <span style={{ color: col, fontWeight: 700, fontSize: '9px', letterSpacing: '0.07em' }}>WHY THIS CONFIDENCE? </span>
+          {reason}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SourceBadge = ({ source }) => {
+  const isAI = source === 'openrouter';
+  const col  = isAI ? '#a09aff' : '#2ed8a0';
+  return <span style={{ fontSize: '8px', fontWeight: 700, color: col, background: `${col}12`, border: `1px solid ${col}25`, borderRadius: '3px', padding: '2px 6px', letterSpacing: '0.08em' }}>{isAI ? '⚡ Llama 3.3 70B' : '◈ Rules Engine v3'}</span>;
+};
+
+const Skeleton = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+    {['DIAGNOSIS', 'ROOT CAUSE', 'ACTIONS'].map(label => (
+      <div key={label} style={{ padding: '11px 13px', borderRadius: '8px', background: 'rgba(127,119,221,0.03)', border: '1px solid rgba(127,119,221,0.08)', animation: 'ai-shimmer 1.5s ease-in-out infinite' }}>
+        <div style={{ fontSize: '9px', color: 'rgba(160,154,255,0.22)', fontWeight: 800, letterSpacing: '0.12em', marginBottom: 8 }}>{label}</div>
+        <div style={{ height: 7, background: 'rgba(255,255,255,0.035)', borderRadius: 4, marginBottom: 5, width: '88%' }} />
+        <div style={{ height: 7, background: 'rgba(255,255,255,0.02)', borderRadius: 4, width: '60%' }} />
       </div>
-      <div style={{ fontSize: '10px', color: 'rgba(220,220,240,0.45)', lineHeight: 1.6 }}>
-        {suggestion.implementation}
+    ))}
+  </div>
+);
+
+// ── Preview Impact chip (shown before Apply) ───────────────────────────────────
+const PreviewImpact = ({ preview, color }) => {
+  if (!preview) return null;
+  const improved = preview.delta > 0;
+  const sevChanged = preview.severity_before !== preview.severity_after;
+  return (
+    <div style={{ marginTop: '8px', padding: '7px 10px', borderRadius: '6px', background: `${color}08`, border: `1px solid ${color}22` }}>
+      <div style={{ fontSize: '8px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(200,200,224,0.35)', marginBottom: '5px' }}>
+        ⚡ IF APPLIED
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+        <span style={{ fontSize: '10px', fontWeight: 700, color: improved ? '#2ed8a0' : '#ff7070' }}>
+          Fairness: {preview.fairness_before} → <strong>{preview.fairness_after}</strong>
+          {' '}({preview.delta > 0 ? '+' : ''}{preview.delta} pts)
+        </span>
+        {sevChanged && (
+          <span style={{ fontSize: '9px', color: 'rgba(200,200,224,0.45)' }}>
+            | Severity: <span style={{ color: SEV[preview.severity_before]?.color }}>{preview.severity_before}</span>
+            {' → '}<span style={{ color: SEV[preview.severity_after]?.color, fontWeight: 700 }}>{preview.severity_after}</span>
+          </span>
+        )}
       </div>
     </div>
   );
 };
 
-// ── Main Panel ─────────────────────────────────────────────────────────────────
+// ── Mechanism expander ─────────────────────────────────────────────────────────
+const MechanismBox = ({ text, color }) => {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  return (
+    <div style={{ marginTop: '6px' }}>
+      <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.08em', color: `${color}cc` }}>WHY THIS WORKS</span>
+        <span style={{ fontSize: '8px', color: `${color}66` }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div
+          style={{ marginTop: '5px', padding: '8px 10px', borderRadius: '6px', background: `${color}07`, border: `1px solid ${color}1f`, fontSize: '10px', color: 'rgba(200,200,224,0.55)', lineHeight: 1.7, animation: 'ai-fadein 0.22s ease' }}
+          dangerouslySetInnerHTML={{ __html: text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.8)">$1</strong>') }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ── Action card ────────────────────────────────────────────────────────────────
+const ActionCard = ({ action, index, applied, onApply }) => {
+  const col      = CARD_COLORS[index % CARD_COLORS.length];
+  const canApply = !!action.paramAdjustments;
+  const isAuto   = action.action_type === 'autofix';
+
+  return (
+    <div style={{
+      background: applied ? `${col}09` : 'rgba(255,255,255,0.02)',
+      border: `1px solid ${applied ? col + '32' : 'rgba(255,255,255,0.065)'}`,
+      borderRadius: '8px', padding: '11px 13px',
+      boxShadow: applied ? `0 0 12px ${col}18` : 'none',
+      transition: 'all 0.35s',
+    }}>
+      {/* Row 1: number + instruction + apply */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '7px' }}>
+        <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${col}20`, border: `1px solid ${col}40`, fontSize: '9px', fontWeight: 800, color: col }}>
+          {index + 1}
+        </span>
+        <div style={{ flex: 1, fontSize: '11px', fontWeight: 600, color: 'rgba(220,220,240,0.88)', lineHeight: 1.55 }}
+          dangerouslySetInnerHTML={{ __html: action.instruction.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${col}">$1</strong>`) }}
+        />
+        <button
+          onClick={() => onApply(action)}
+          disabled={applied || !canApply}
+          style={{
+            flexShrink: 0, padding: '3px 10px', borderRadius: '4px', fontSize: '8px', fontWeight: 800,
+            letterSpacing: '0.08em', fontFamily: 'inherit',
+            cursor: (applied || !canApply) ? 'default' : 'pointer',
+            border: `1px solid ${col}40`,
+            background: applied ? `${col}20` : 'transparent',
+            color: applied ? col : 'rgba(200,200,224,0.3)',
+            opacity: !canApply && !applied ? 0.35 : 1,
+            transition: 'all 0.2s',
+          }}
+        >
+          {applied ? '✓ APPLIED' : isAuto ? '⚡ RUN' : 'APPLY'}
+        </button>
+      </div>
+
+      {/* Row 2: reason */}
+      <div style={{ fontSize: '10px', color: 'rgba(220,220,240,0.44)', lineHeight: 1.65, marginBottom: '8px' }}
+        dangerouslySetInnerHTML={{ __html: action.reason.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.72)">$1</strong>') }}
+      />
+
+      {/* Row 3: before → after + expected result */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '7px', marginBottom: '2px' }}>
+        {action.before && action.after && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '5px', padding: '3px 8px', fontSize: '10px' }}>
+            <span style={{ color: 'rgba(200,200,224,0.35)', textDecoration: 'line-through', fontWeight: 600 }}>{action.before}</span>
+            <span style={{ color: 'rgba(200,200,224,0.3)', fontSize: '9px' }}>→</span>
+            <span style={{ color: col, fontWeight: 700 }}>{action.after}</span>
+          </div>
+        )}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: col, fontWeight: 700, background: `${col}0c`, border: `1px solid ${col}22`, borderRadius: '4px', padding: '2px 8px' }}>
+          <span>→</span><span>{action.expected_result}</span>
+        </div>
+      </div>
+
+      {/* Preview before apply (hidden once applied) */}
+      {!applied && <PreviewImpact preview={action.preview_impact} color={col} />}
+
+      {/* Why this works (collapsible) */}
+      <MechanismBox text={action.mechanism} color={col} />
+    </div>
+  );
+};
+
+// ── Main panel ─────────────────────────────────────────────────────────────────
 const AIInsightPanel = () => {
-  const { scorecard, session, applySuggestion, addXP } = useEquiLens();
+  const { scorecard, session, simulatorParams, applySuggestion, addXP, pushActionHistory } = useEquiLens();
 
-  const [status, setStatus] = useState('idle');   // idle | loading | done | error | no-key
+  const [status,   setStatus]   = useState('idle');
   const [insights, setInsights] = useState(null);
-  const [applied, setApplied] = useState({});
-  const prevFairness = useRef(null);
+  const [applied,  setApplied]  = useState({});
+  const [source,   setSource]   = useState('rules');
+  const [feedback, setFeedback] = useState({ visible: false, prev: null, curr: null, label: '' });
+  const prevSession = useRef(null);
 
-  const hasKey  = !!OPENROUTER_KEY && !OPENROUTER_KEY.includes('your_openrouter');
-  // Only require the file to have been uploaded — fairness_score CAN be 0
   const hasData = session.uploaded && session.session_id;
 
-  const runAnalysis = async () => {
-    if (!hasKey) { setStatus('no-key'); return; }
+  const snap = useCallback(() => ({
+    fairness_score: scorecard.fairness_score,
+    risk_level:     scorecard.risk_level ?? scorecard.state,
+    simulatorParams: { ...simulatorParams },
+  }), [scorecard, simulatorParams]);
+
+  const runAnalysis = useCallback(async () => {
     if (!hasData) return;
     setStatus('loading');
     setInsights(null);
     setApplied({});
-    try {
-      const result = await callOpenRouter(scorecard);
-      setInsights(result);
-      setStatus('done');
-      addXP(30);
-    } catch (err) {
-      console.error('[AI Insight]', err);
-      setStatus('error');
-    }
-  };
+    setFeedback(f => ({ ...f, visible: false }));
 
-  // Auto-run when a new dataset is uploaded (session_id changes)
+    if (HAS_API_KEY) {
+      try {
+        const result = await callOpenRouter(scorecard);
+        setInsights(result); setSource('openrouter'); setStatus('done'); addXP(30);
+        return;
+      } catch (e) { console.warn('[AIInsight] OpenRouter failed:', e.message); }
+    }
+
+    try {
+      await new Promise(r => setTimeout(r, 480));
+      const result = generateInsights({
+        fairness_score:    scorecard.fairness_score,
+        bias_contributors: scorecard.bias_contributors,
+        selection_rates:   scorecard.selection_rates ?? {},
+        group_fairness:    scorecard.group_fairness,
+        simulatorParams,
+      });
+      setInsights(result); setSource('rules'); setStatus('done'); addXP(20);
+    } catch (e) { console.error('[AIInsight] Engine error:', e); setStatus('error'); }
+  }, [scorecard, simulatorParams, hasData, addXP]);
+
   useEffect(() => {
-    if (hasData && session.session_id !== prevFairness.current) {
-      prevFairness.current = session.session_id;
+    if (hasData && session.session_id !== prevSession.current) {
+      prevSession.current = session.session_id;
       runAnalysis();
     }
-  }, [session.session_id, session.uploaded]);
+  }, [session.session_id, session.uploaded, runAnalysis]);
 
-  const handleApply = (suggestion, idx) => {
-    applySuggestion(suggestion);
+  const handleApply = (action, idx) => {
+    const before = snap();
+    applySuggestion(action);
     setApplied(prev => ({ ...prev, [idx]: true }));
+
+    setTimeout(() => {
+      const after = snap();
+      setFeedback({
+        visible: true, prev: before, curr: after,
+        label: action.action_type === 'autofix' ? '⚡ Auto-Fix Applied' : 'Changes Applied',
+      });
+      // Push to action history
+      pushActionHistory({
+        instruction:    action.instruction,
+        before:         action.before,
+        after:          action.after,
+        expected_result: action.expected_result,
+        fairnessBefore: before.fairness_score,
+        fairnessAfter:  after.fairness_score,
+      });
+      setTimeout(() => setFeedback(f => ({ ...f, visible: false })), 8000);
+    }, 650);
   };
 
-  // Status dot color
-  const dotColor = { idle: '#444', loading: '#ffb74d', done: '#2ed8a0', error: '#ff7070', 'no-key': '#ffb74d' }[status];
+  const liveConfidence = computeConfidence(
+    scorecard.fairness_score, scorecard.bias_contributors,
+    scorecard.selection_rates ?? {}, scorecard.group_fairness,
+  );
+  const confidenceReason = buildConfidenceReason(
+    scorecard.fairness_score, scorecard.bias_contributors,
+    scorecard.selection_rates ?? {}, scorecard.group_fairness,
+  );
+
+  const severity = insights?.severity ?? getSeverity(scorecard.fairness_score);
+  const meta     = sm(severity);
+  const dotCol   = { idle: '#444', loading: '#ffb74d', done: meta.color, error: '#ff7070' }[status];
 
   return (
-    <div style={{
-      background: 'var(--bg-glass)',
-      border: `1px solid ${status === 'done' ? 'rgba(127,119,221,0.25)' : 'var(--border-glass)'}`,
-      borderRadius: '10px', padding: '14px 16px',
-      transition: 'border-color 0.5s',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: 7, height: 7, borderRadius: '50%', background: dotColor,
-            boxShadow: status === 'done' ? '0 0 8px #2ed8a066' : 'none',
-            animation: status === 'loading' ? 'ai-pulse 1s infinite' : 'none',
-          }} />
-          <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-            AI Fairness Insights
-          </span>
-          {status === 'done' && (
-            <span style={{ fontSize: '9px', color: 'rgba(127,119,221,0.55)' }}>· Llama 3.3 70B</span>
-          )}
+      {/* ── Main insight card ─────────────────────────────────────────────── */}
+      <div style={{
+        background: 'var(--bg-glass)',
+        border: `1px solid ${status === 'done' ? meta.color + '28' : 'var(--border-glass)'}`,
+        borderRadius: '10px', padding: '14px 16px',
+        display: 'flex', flexDirection: 'column', gap: '10px',
+        transition: 'border-color 0.5s',
+      }}>
+        <SystemStatus fairnessScore={scorecard.fairness_score} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotCol, boxShadow: status === 'done' ? `0 0 7px ${dotCol}88` : 'none', animation: status === 'loading' ? 'ai-pulse 0.9s infinite' : 'none' }} />
+            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>AI Fairness Insights</span>
+            {status === 'done' && <SourceBadge source={source} />}
+          </div>
+          <button onClick={runAnalysis} disabled={status === 'loading' || !hasData}
+            style={{ padding: '3px 10px', borderRadius: '5px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em', fontFamily: 'inherit', cursor: (status === 'loading' || !hasData) ? 'not-allowed' : 'pointer', border: '1px solid rgba(127,119,221,0.28)', background: 'rgba(127,119,221,0.07)', color: '#a09aff', opacity: (status === 'loading' || !hasData) ? 0.4 : 1, transition: 'all 0.2s' }}>
+            {status === 'loading' ? '⟳ ANALYZING…' : '⟳ REFRESH'}
+          </button>
         </div>
-        <button
-          onClick={runAnalysis}
-          disabled={status === 'loading' || !hasData}
-          style={{
-            padding: '3px 10px', borderRadius: '5px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em',
-            cursor: (status === 'loading' || !hasData) ? 'not-allowed' : 'pointer',
-            border: '1px solid rgba(127,119,221,0.3)', background: 'rgba(127,119,221,0.08)',
-            color: '#a09aff', fontFamily: 'inherit', transition: 'all 0.2s',
-            opacity: (status === 'loading' || !hasData) ? 0.4 : 1,
-          }}
-        >
-          {status === 'loading' ? '⟳ ANALYZING' : '⟳ REFRESH'}
-        </button>
+
+        {/* Confidence (always live, clickable to see reason) */}
+        <ConfidenceMeter value={liveConfidence} reason={confidenceReason} />
+
+        {/* States */}
+        {status === 'idle' && !hasData && (
+          <div style={{ textAlign: 'center', padding: '26px 0', color: 'rgba(200,200,224,0.18)', fontSize: '11px' }}>
+            <div style={{ fontSize: '22px', marginBottom: '8px' }}>◈</div>
+            Upload a CSV dataset to generate AI-powered fairness insights
+          </div>
+        )}
+        {status === 'loading' && <Skeleton />}
+        {status === 'error' && (
+          <div style={{ fontSize: '11px', color: '#ff7070', background: 'rgba(226,75,74,0.07)', border: '1px solid rgba(226,75,74,0.18)', borderRadius: '7px', padding: '10px 12px', textAlign: 'center' }}>
+            Analysis failed.{' '}<span onClick={runAnalysis} style={{ cursor: 'pointer', textDecoration: 'underline', color: '#ff9090' }}>Retry</span>
+          </div>
+        )}
+
+        {/* Results */}
+        {status === 'done' && insights && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {/* Diagnosis */}
+            <div style={{ padding: '11px 13px', borderRadius: '7px', background: meta.bg, border: `1px solid ${meta.color}22` }}>
+              <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: meta.color, marginBottom: 7 }}>◎ DIAGNOSIS</div>
+              <div style={{ fontSize: '11px', lineHeight: 1.75, color: 'rgba(220,220,240,0.78)' }}
+                dangerouslySetInnerHTML={{ __html: insights.diagnosis.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.96)">$1</strong>') }}
+              />
+            </div>
+            {/* Root Cause */}
+            <div style={{ padding: '11px 13px', borderRadius: '7px', background: 'rgba(239,159,39,0.05)', border: '1px solid rgba(239,159,39,0.14)' }}>
+              <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#ffb74d', marginBottom: 7 }}>◈ ROOT CAUSE</div>
+              <div style={{ fontSize: '11px', lineHeight: 1.75, color: 'rgba(220,220,240,0.72)' }}
+                dangerouslySetInnerHTML={{ __html: insights.cause.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.9)">$1</strong>') }}
+              />
+            </div>
+            {/* Actions */}
+            {(insights.actions ?? []).length > 0 && (
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#2ed8a0', marginBottom: '8px' }}>★ REMEDIATION ACTIONS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  {insights.actions.map((action, i) => (
+                    <ActionCard key={i} action={action} index={i} applied={!!applied[i]} onApply={(a) => handleApply(a, i)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Change feedback */}
+        <ChangeFeedbackPanel prev={feedback.prev} curr={feedback.curr} visible={feedback.visible} label={feedback.label} />
       </div>
 
-      {/* ── No key ── */}
-      {status === 'no-key' && (
-        <div style={{ fontSize: '10px', color: '#ffb74d', background: 'rgba(239,159,39,0.08)', border: '1px solid rgba(239,159,39,0.18)', borderRadius: '7px', padding: '10px 12px' }}>
-          ⚠ Add <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 3 }}>VITE_OPENROUTER_API_KEY</code> to your <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 3 }}>.env</code> file and restart Vite.
-        </div>
-      )}
-
-      {/* ── No data ── */}
-      {(status === 'idle') && !hasData && (
-        <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(200,200,224,0.22)', fontSize: '11px' }}>
-          Upload a CSV to generate AI-powered insights
-        </div>
-      )}
-
-      {/* ── Loading skeleton ── */}
-      {status === 'loading' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {['DIAGNOSIS', 'CAUSE', 'SUGGESTIONS'].map(label => (
-            <div key={label} style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(127,119,221,0.04)', border: '1px solid rgba(127,119,221,0.1)', animation: 'ai-shimmer 1.6s ease-in-out infinite' }}>
-              <div style={{ fontSize: '9px', color: 'rgba(160,154,255,0.3)', fontWeight: 800, letterSpacing: '0.12em', marginBottom: 8 }}>{label}</div>
-              <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.04)', marginBottom: 6, width: '88%' }} />
-              <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.04)', width: '65%' }} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Error ── */}
-      {status === 'error' && (
-        <div style={{ fontSize: '11px', color: '#ff7070', background: 'rgba(226,75,74,0.07)', border: '1px solid rgba(226,75,74,0.18)', borderRadius: '7px', padding: '10px 12px', textAlign: 'center' }}>
-          AI analysis failed — check console for details.{' '}
-          <span onClick={runAnalysis} style={{ cursor: 'pointer', textDecoration: 'underline', color: '#ff9090' }}>Retry</span>
-        </div>
-      )}
-
-      {/* ── Results ── */}
-      {status === 'done' && insights && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-          {/* Diagnosis */}
-          <div style={{ padding: '11px 13px', borderRadius: '7px', background: 'rgba(226,75,74,0.06)', border: '1px solid rgba(226,75,74,0.15)' }}>
-            <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#ff7070', marginBottom: 7 }}>◎ DIAGNOSIS</div>
-            <div style={{ fontSize: '11px', lineHeight: 1.7, color: 'rgba(220,220,240,0.75)' }}>
-              <Typewriter text={insights.diagnosis} delay={0} />
-            </div>
-          </div>
-
-          {/* Cause */}
-          <div style={{ padding: '11px 13px', borderRadius: '7px', background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.15)' }}>
-            <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#ffb74d', marginBottom: 7 }}>◈ CAUSE</div>
-            <div style={{ fontSize: '11px', lineHeight: 1.7, color: 'rgba(220,220,240,0.75)' }}>
-              <Typewriter text={insights.cause} delay={500} />
-            </div>
-          </div>
-
-          {/* Suggestions */}
-          {(insights.suggestions || []).length > 0 && (
-            <div>
-              <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#2ed8a0', marginBottom: '8px' }}>★ SUGGESTIONS</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {insights.suggestions.map((s, i) => (
-                  <SuggestionCard
-                    key={i}
-                    suggestion={s}
-                    index={i}
-                    applied={!!applied[i]}
-                    onApply={(sg) => handleApply(sg, i)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ── Final Summary (below insight card) ───────────────────────────── */}
+      <FinalSummaryPanel />
 
       <style>{`
-        @keyframes ai-pulse   { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        @keyframes ai-shimmer { 0%,100%{opacity:0.6} 50%{opacity:1} }
+        @keyframes ai-pulse   { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        @keyframes ai-shimmer { 0%,100%{opacity:0.5} 50%{opacity:1}  }
+        @keyframes ai-fadein  { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
     </div>
   );

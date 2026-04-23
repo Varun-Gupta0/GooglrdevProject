@@ -41,9 +41,22 @@ const useEquiLens = create((set, get) => ({
   // ── Helix mini-game ───────────────────────────────────────────────────────
   helix: { total: 20, infected: 13, fixed: 0 },
 
+  // ── Action history ────────────────────────────────────────────────────────
+  // Each entry: { id, instruction, before, after, expected_result, fairnessBefore, fairnessAfter, ts }
+  actionHistory: [],
+
   // ── ACTIONS ───────────────────────────────────────────────────────────────
 
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  pushActionHistory: (entry) => set((state) => ({
+    actionHistory: [
+      ...state.actionHistory,
+      { ...entry, id: Date.now(), ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+    ],
+  })),
+
+  clearActionHistory: () => set({ actionHistory: [] }),
 
   /** Slider change → hits /api/simulate for real scorecard */
   setSimulatorParams: async (params) => {
