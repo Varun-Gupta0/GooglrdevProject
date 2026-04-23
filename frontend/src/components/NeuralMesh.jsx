@@ -88,7 +88,7 @@ const NeuralNetworkScene = () => {
 
   return (
     <div className="w-full flex flex-col gap-2">
-      <div style={{ height: '255px', borderRadius: '8px', overflow: 'hidden', background: 'radial-gradient(circle at center, #1a1f2e 0%, #0a0f1c 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ height: '255px', borderRadius: '8px', overflow: 'hidden', background: 'radial-gradient(circle at center, #fdfdff 0%, #f1f5f9 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.05)' }}>
         <Canvas camera={{ position: [0, 0, 5.8], fov: 60 }} gl={{ antialias: true, alpha: true }} dpr={[1, 2]}>
           <ambientLight intensity={0.1} color="#111122" />
           <pointLight position={[5, 5, 5]}  intensity={1.2} color="#5555ff" />

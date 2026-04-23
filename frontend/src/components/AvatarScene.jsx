@@ -114,10 +114,10 @@ const AvatarScene = ({ fairnessScore }) => {
           <AICore fairnessScore={fairnessScore} />
         </Float>
         
-        {/* Subtle background glow */}
+        {/* Subtle background glow - Whitish variant */}
         <mesh position={[0, 0, -2]}>
           <planeGeometry args={[20, 20]} />
-          <meshBasicMaterial color="#000" transparent opacity={0.2} />
+          <meshBasicMaterial color="#f8fafc" transparent opacity={0.15} />
         </mesh>
       </Canvas>
     </div>

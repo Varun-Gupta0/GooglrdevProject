@@ -86,27 +86,27 @@ const StepRow = ({ step, state }) => {
   const col = state === 'done' ? '#2ed8a0' : state === 'active' ? '#a09aff' : 'rgba(200,200,224,0.2)';
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '8px',
-      padding: '6px 10px', borderRadius: '6px',
+      display: 'flex', alignItems: 'flex-start', gap: '10px',
+      padding: '8px 12px', borderRadius: '6px',
       background: state === 'active' ? 'rgba(160,154,255,0.08)' : state === 'done' ? 'rgba(46,216,160,0.06)' : 'transparent',
       border: `1px solid ${state === 'pending' ? 'rgba(255,255,255,0.05)' : col + '30'}`,
       transition: 'all 0.4s',
     }}>
-      <span style={{ fontSize: '12px', color: col, flexShrink: 0, transition: 'color 0.4s' }}>
+      <span style={{ fontSize: '12px', color: col, flexShrink: 0, transition: 'color 0.4s', marginTop: '1px' }}>
         {state === 'done' ? '✓' : state === 'active' ? '⟳' : step.icon}
       </span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '10px', fontWeight: state === 'active' ? 700 : 600, color: state === 'pending' ? 'rgba(200,200,224,0.3)' : 'rgba(220,220,240,0.85)', lineHeight: 1.3, transition: 'color 0.4s' }}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '10px', fontWeight: state === 'active' ? 700 : 600, color: state === 'pending' ? 'rgba(200,200,224,0.3)' : 'rgba(220,220,240,0.85)', lineHeight: 1.45, transition: 'color 0.4s' }}
           dangerouslySetInnerHTML={{ __html: step.instruction.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${col}">$1</strong>`) }}
         />
         {state !== 'pending' && (
-          <div style={{ fontSize: '9px', color: 'rgba(200,200,224,0.4)', marginTop: '2px', lineHeight: 1.4, animation: 'dm-fadein 0.3s ease' }}>
+          <div style={{ fontSize: '9px', color: 'rgba(200,200,224,0.4)', marginTop: '4px', lineHeight: 1.5, animation: 'dm-fadein 0.3s ease' }}>
             {step.reason}
           </div>
         )}
       </div>
       {state === 'active' && (
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#a09aff', animation: 'dm-pulse 0.8s infinite', flexShrink: 0 }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#a09aff', animation: 'dm-pulse 0.8s infinite', flexShrink: 0, marginTop: '4px' }} />
       )}
     </div>
   );
@@ -393,7 +393,7 @@ const DemoMode = () => {
                   This AI system is currently biased and unsafe to deploy.
                 </span>
               </div>
-              <div style={{ fontSize: '9px', color: 'rgba(255,112,112,0.6)', lineHeight: 1.6, paddingLeft: '20px' }}>
+              <div style={{ fontSize: '9px', color: 'rgba(255,112,112,0.6)', lineHeight: 1.8, paddingLeft: '20px' }}>
                 Non-compliant AI systems can violate fairness regulations (GDPR Art. 22, EU AI Act).
                 EquiLens will now remediate this automatically.
               </div>
@@ -421,7 +421,7 @@ const DemoMode = () => {
           )}
 
           {/* Step list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {DEMO_STEPS.map((step, i) => (
               <StepRow
                 key={i}
