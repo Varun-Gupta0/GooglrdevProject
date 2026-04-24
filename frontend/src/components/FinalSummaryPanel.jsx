@@ -110,10 +110,12 @@ const HistoryRow = ({ entry, index }) => {
 // ─── main component ────────────────────────────────────────────────────────────
 
 const FinalSummaryPanel = () => {
-  const { scorecard, baselineFairness, actionHistory, clearActionHistory } = useEquiLens();
+  const { baselineFairness, actionHistory, clearActionHistory } = useEquiLens();
+  const scorecard = useEquiLens(state => state.scorecard);
+  const fairnessScore = useEquiLens(state => state.scorecard.fairness_score);
   const [historyOpen, setHistoryOpen] = useState(true);
 
-  const current     = scorecard.fairness_score ?? 0;
+  const current     = fairnessScore ?? 0;
   const initial     = baselineFairness ?? 0;
   const improvement = current - initial;
   const applied     = actionHistory.length;

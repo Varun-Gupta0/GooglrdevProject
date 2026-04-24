@@ -10,6 +10,7 @@ import generateInsights, { computeConfidence, getSeverity, buildConfidenceReason
 import SystemStatus from './SystemStatus';
 import ChangeFeedbackPanel from './ChangeFeedbackPanel';
 import FinalSummaryPanel from './FinalSummaryPanel';
+import { getMaturityLevel } from '../store/useEquiLens';
 
 // ── OpenRouter (optional fallback path) ───────────────────────────────────────
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
@@ -39,10 +40,10 @@ const callOpenRouter = async (scorecard) => {
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 const SEV = {
-  CRITICAL: { color: '#ff7070', bg: 'rgba(255,112,112,0.08)' },
-  HIGH:     { color: '#ffb74d', bg: 'rgba(255,183,77,0.08)'  },
-  MODERATE: { color: '#a09aff', bg: 'rgba(160,154,255,0.08)' },
-  LOW:      { color: '#2ed8a0', bg: 'rgba(46,216,160,0.08)'  },
+  CRITICAL: { color: 'var(--state-biased)',   bg: 'rgba(255,82,82,0.12)'   },
+  HIGH:     { color: 'var(--state-moderate)', bg: 'rgba(255,183,77,0.12)'  },
+  MODERATE: { color: 'var(--accent-blue)',    bg: 'rgba(96,165,250,0.12)'  },
+  LOW:      { color: 'var(--state-fair)',     bg: 'rgba(46,216,160,0.12)'  },
 };
 const sm = (s) => SEV[s] ?? SEV.MODERATE;
 const CARD_COLORS = ['#ff7070', '#ffb74d', '#a09aff', '#2ed8a0'];
@@ -54,14 +55,14 @@ const ConfidenceMeter = ({ value, reason }) => {
   const col = value >= 85 ? '#2ed8a0' : value >= 70 ? '#a09aff' : '#ffb74d';
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: reason ? 'pointer' : 'default' }}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: reason ? 'pointer' : 'default' }}
            onClick={() => reason && setOpen(o => !o)}>
-        <span style={{ fontSize: '9px', color: 'rgba(200,200,224,0.35)', letterSpacing: '0.08em', minWidth: '68px' }}>CONFIDENCE</span>
-        <div style={{ flex: 1, height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${value}%`, background: col, borderRadius: '2px', transition: 'width 0.8s cubic-bezier(0.22,1,0.36,1), background 0.4s' }} />
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', minWidth: '80px' }}>CONFIDENCE</span>
+        <div style={{ flex: 1, height: '4px', background: 'var(--border-glass)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${value}%`, background: col, borderRadius: '2px', transition: 'width 0.8s cubic-bezier(0.22,1,0.36,1), background 0.4s', boxShadow: `0 0 8px ${col}44` }} />
         </div>
-        <span style={{ fontSize: '9px', fontWeight: 700, color: col, minWidth: '28px', textAlign: 'right' }}>{value}%</span>
-        {reason && <span style={{ fontSize: '8px', color: 'rgba(200,200,224,0.25)' }}>{open ? '▲' : '▼'}</span>}
+        <span style={{ fontSize: '12px', fontWeight: 800, color: col, minWidth: '32px', textAlign: 'right' }}>{value}%</span>
+        {reason && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>}
       </div>
       {open && reason && (
         <div style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '6px', background: `${col}09`, border: `1px solid ${col}22`, fontSize: '10px', color: 'rgba(200,200,224,0.55)', lineHeight: 1.65, animation: 'ai-fadein 0.25s ease' }}>
@@ -75,8 +76,8 @@ const ConfidenceMeter = ({ value, reason }) => {
 
 const SourceBadge = ({ source }) => {
   const isAI = source === 'openrouter';
-  const col  = isAI ? '#a09aff' : '#2ed8a0';
-  return <span style={{ fontSize: '8px', fontWeight: 700, color: col, background: `${col}12`, border: `1px solid ${col}25`, borderRadius: '3px', padding: '2px 6px', letterSpacing: '0.08em' }}>{isAI ? '⚡ Llama 3.3 70B' : '◈ Rules Engine v3'}</span>;
+  const col  = isAI ? 'var(--accent-purple)' : 'var(--state-fair)';
+  return <span style={{ fontSize: '10px', fontWeight: 800, color: col, background: `${col}18`, border: `1px solid ${col}30`, borderRadius: '4px', padding: '2px 8px', letterSpacing: '0.04em' }}>{isAI ? '⚡ AI AUDIT' : '◈ RULES ENGINE'}</span>;
 };
 
 const Skeleton = () => (
@@ -153,23 +154,23 @@ const ActionCard = ({ action, index, applied, onApply }) => {
     }}>
       {/* Row 1: number + instruction + apply */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '7px' }}>
-        <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${col}20`, border: `1px solid ${col}40`, fontSize: '9px', fontWeight: 800, color: col }}>
+        <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${col}20`, border: `1.5px solid ${col}44`, fontSize: '11px', fontWeight: 900, color: col }}>
           {index + 1}
         </span>
-        <div style={{ flex: 1, fontSize: '11px', fontWeight: 600, color: 'rgba(220,220,240,0.88)', lineHeight: 1.55 }}
+        <div style={{ flex: 1, fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.5 }}
           dangerouslySetInnerHTML={{ __html: action.instruction.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${col}">$1</strong>`) }}
         />
         <button
           onClick={() => onApply(action)}
           disabled={applied || !canApply}
           style={{
-            flexShrink: 0, padding: '3px 10px', borderRadius: '4px', fontSize: '8px', fontWeight: 800,
-            letterSpacing: '0.08em', fontFamily: 'inherit',
+            flexShrink: 0, padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 800,
+            letterSpacing: '0.04em', fontFamily: 'inherit',
             cursor: (applied || !canApply) ? 'default' : 'pointer',
-            border: `1px solid ${col}40`,
-            background: applied ? `${col}20` : 'transparent',
-            color: applied ? col : 'rgba(200,200,224,0.3)',
-            opacity: !canApply && !applied ? 0.35 : 1,
+            border: `1.5px solid ${col}44`,
+            background: applied ? `${col}22` : 'transparent',
+            color: applied ? col : col,
+            opacity: !canApply && !applied ? 0.4 : 1,
             transition: 'all 0.2s',
           }}
         >
@@ -178,8 +179,8 @@ const ActionCard = ({ action, index, applied, onApply }) => {
       </div>
 
       {/* Row 2: reason */}
-      <div style={{ fontSize: '10px', color: 'rgba(220,220,240,0.44)', lineHeight: 1.65, marginBottom: '8px' }}
-        dangerouslySetInnerHTML={{ __html: action.reason.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.72)">$1</strong>') }}
+      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: '10px', paddingLeft: '32px' }}
+        dangerouslySetInnerHTML={{ __html: action.reason.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>') }}
       />
 
       {/* Row 3: before → after + expected result */}
@@ -311,13 +312,14 @@ const AIInsightPanel = () => {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotCol, boxShadow: status === 'done' ? `0 0 7px ${dotCol}88` : 'none', animation: status === 'loading' ? 'ai-pulse 0.9s infinite' : 'none' }} />
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>AI Fairness Insights</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotCol, boxShadow: status === 'done' ? `0 0 10px ${dotCol}AA` : 'none', animation: status === 'loading' ? 'ai-pulse 0.9s infinite' : 'none' }} />
+            <span style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '0.02em', color: 'var(--text-primary)' }}>Fairness Audit & Diagnosis</span>
             {status === 'done' && <SourceBadge source={source} />}
           </div>
           <button onClick={runAnalysis} disabled={status === 'loading' || !hasData}
-            style={{ padding: '3px 10px', borderRadius: '5px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em', fontFamily: 'inherit', cursor: (status === 'loading' || !hasData) ? 'not-allowed' : 'pointer', border: '1px solid rgba(127,119,221,0.28)', background: 'rgba(127,119,221,0.07)', color: '#a09aff', opacity: (status === 'loading' || !hasData) ? 0.4 : 1, transition: 'all 0.2s' }}>
+            className="btn-primary"
+            style={{ padding: '4px 12px', fontSize: '10px' }}>
             {status === 'loading' ? '⟳ ANALYZING…' : '⟳ REFRESH'}
           </button>
         </div>
@@ -341,26 +343,26 @@ const AIInsightPanel = () => {
 
         {/* Results */}
         {status === 'done' && insights && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Diagnosis */}
-            <div style={{ padding: '11px 13px', borderRadius: '7px', background: meta.bg, border: `1px solid ${meta.color}22` }}>
-              <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: meta.color, marginBottom: 7 }}>◎ DIAGNOSIS</div>
-              <div style={{ fontSize: '11px', lineHeight: 1.75, color: 'rgba(220,220,240,0.78)' }}
-                dangerouslySetInnerHTML={{ __html: insights.diagnosis.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.96)">$1</strong>') }}
+            <div style={{ padding: '14px 16px', borderRadius: '10px', background: meta.bg, border: `1.5px solid ${meta.color}35`, boxShadow: `0 0 15px ${meta.color}08` }}>
+              <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.08em', color: meta.color, marginBottom: 10, textTransform: 'uppercase' }}>◎ Diagnosis</div>
+              <div style={{ fontSize: '14px', lineHeight: 1.7, color: 'var(--text-primary)', fontWeight: 500 }}
+                dangerouslySetInnerHTML={{ __html: insights.diagnosis.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${meta.color}">$1</strong>`) }}
               />
             </div>
             {/* Root Cause */}
-            <div style={{ padding: '11px 13px', borderRadius: '7px', background: 'rgba(239,159,39,0.05)', border: '1px solid rgba(239,159,39,0.14)' }}>
-              <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#ffb74d', marginBottom: 7 }}>◈ ROOT CAUSE</div>
-              <div style={{ fontSize: '11px', lineHeight: 1.75, color: 'rgba(220,220,240,0.72)' }}
-                dangerouslySetInnerHTML={{ __html: insights.cause.replace(/\*\*(.*?)\*\*/g, '<strong style="color:rgba(220,220,240,0.9)">$1</strong>') }}
+            <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(255,183,77,0.08)', border: '1.5px solid rgba(255,183,77,0.25)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.08em', color: 'var(--state-moderate)', marginBottom: 10, textTransform: 'uppercase' }}>◈ Root Cause</div>
+              <div style={{ fontSize: '14px', lineHeight: 1.7, color: 'var(--text-secondary)' }}
+                dangerouslySetInnerHTML={{ __html: insights.cause.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>') }}
               />
             </div>
             {/* Actions */}
             {(insights.actions ?? []).length > 0 && (
               <div>
-                <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: '#2ed8a0', marginBottom: '8px' }}>★ REMEDIATION ACTIONS</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.08em', color: 'var(--state-fair)', marginBottom: '12px', textTransform: 'uppercase' }}>Recommended Actions</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {insights.actions.map((action, i) => (
                     <ActionCard key={i} action={action} index={i} applied={!!applied[i]} onApply={(a) => handleApply(a, i)} />
                   ))}

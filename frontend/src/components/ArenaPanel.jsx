@@ -3,8 +3,8 @@ import useEquiLens from '../store/useEquiLens';
 import BiasOrb from './BiasOrb';
 
 // ── Colour helpers (match HTML sCol / fInfo logic) ────────────────────────────
-const stateColor  = (f) => f >= 75 ? '#2ed8a0' : f >= 50 ? '#ffb74d' : '#ff7070';
-const stateLabel  = (f) => f >= 75 ? 'FAIR'     : f >= 50 ? 'MODERATE' : 'BIASED';
+const stateColor  = (f) => f >= 75 ? 'var(--state-fair)' : f >= 50 ? 'var(--state-moderate)' : 'var(--state-biased)';
+const stateLabel  = (f) => f >= 75 ? 'COMPLIANT' : f >= 50 ? 'WARNING' : 'BIASED';
 const riskLabel   = (f) => f >= 75 ? 'LOW RISK'  : f >= 50 ? 'MED RISK' : 'HIGH RISK';
 const pillClass   = (f) => f >= 75 ? 'pill-green' : f >= 50 ? 'pill-amber' : 'pill-red';
 
@@ -17,11 +17,11 @@ const StatCard = ({ label, value, subtitle, inverted = false }) => {
 
   return (
     <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '12px 14px' }}>
-      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
         {label}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1.1, color, transition: 'color 0.4s' }}>
+        <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1.1, color, transition: 'color 0.4s' }}>
           {value}
         </div>
         <svg width="44" height="44" viewBox="0 0 44 44">
@@ -45,16 +45,16 @@ const StatCard = ({ label, value, subtitle, inverted = false }) => {
 const DNACloud = ({ contributors }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
     {contributors.map((c, i) => {
-      const [bg, tc] = c.score > 60
-        ? ['rgba(226,75,74,.14)', '#ff7070']
+      const tc = c.score > 60
+        ? 'var(--state-biased)'
         : c.score > 35
-          ? ['rgba(239,159,39,.12)', '#ffb74d']
-          : ['rgba(29,158,117,.12)', '#2ed8a0'];
+          ? 'var(--state-moderate)'
+          : 'var(--state-fair)';
       return (
         <span key={i} style={{
-          padding: '2px 8px', borderRadius: '4px', fontSize: '9px', fontWeight: 700,
-          letterSpacing: '0.06em', border: `1px solid ${tc}30`,
-          background: bg, color: tc, cursor: 'default',
+          padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+          letterSpacing: '0.04em', border: `1px solid ${tc}40`,
+          background: `${tc}10`, color: tc, cursor: 'default',
           transition: 'all 0.3s',
         }}>
           {c.feature} {c.score}%
@@ -68,15 +68,15 @@ const DNACloud = ({ contributors }) => (
 const BiasContributorList = ({ contributors }) => (
   <div>
     {contributors.slice(0, 5).map((b, i) => {
-      const c = b.score > 60 ? '#ff7070' : b.score > 40 ? '#ffb74d' : '#2ed8a0';
+      const c = b.score > 60 ? 'var(--state-biased)' : b.score > 40 ? 'var(--state-moderate)' : 'var(--state-fair)';
       return (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <span style={{ fontSize: '11px', color: 'rgba(200,200,224,0.52)' }}>{b.feature} feature</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <div style={{ width: '58px', height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-glass)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{b.feature} feature</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '70px', height: '4px', background: 'var(--border-glass)', borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${b.score}%`, background: c, borderRadius: '2px', transition: 'width 0.4s' }} />
             </div>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: c, minWidth: '26px', textAlign: 'right', transition: 'color 0.3s' }}>{b.score}%</span>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: c, minWidth: '32px', textAlign: 'right', transition: 'color 0.3s' }}>{b.score}%</span>
           </div>
         </div>
       );
@@ -93,17 +93,17 @@ const EntityProfile = ({ session }) => {
     ['Deploy status', { text: session.uploaded ? '⚠ Blocked' : '○ No Data', color: '#ff7070' }],
   ];
   return (
-    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '12px 14px' }}>
-      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
+    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '16px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
         Entity Profile
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '11px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
         {rows.map(([label, val]) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
             {typeof val === 'object'
-              ? <span style={{ color: val.color }}>{val.text}</span>
-              : <span>{val}</span>}
+              ? <span style={{ color: val.color, fontWeight: 700 }}>{val.text}</span>
+              : <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{val}</span>}
           </div>
         ))}
       </div>
@@ -116,9 +116,9 @@ const FairnessOverrideSlider = ({ value, onChange }) => {
   const color = stateColor(value);
   return (
     <div style={{ marginBottom: '0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-        <span style={{ fontSize: '11px', color: 'rgba(200,200,224,0.52)' }}>Fairness override</span>
-        <span style={{ fontSize: '11px', fontWeight: 700, color }}>{value}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Fairness override</span>
+        <span style={{ fontSize: '13px', fontWeight: 800, color }}>{value}</span>
       </div>
       <input
         type="range"
@@ -126,7 +126,7 @@ const FairnessOverrideSlider = ({ value, onChange }) => {
         max={95}
         value={value}
         onChange={(e) => onChange(parseInt(e.target.value))}
-        style={{ width: '100%', height: '4px', accentColor: 'var(--accent-purple)' }}
+        style={{ width: '100%', height: '6px', accentColor: 'var(--accent-purple)', cursor: 'pointer' }}
       />
     </div>
   );
@@ -134,8 +134,10 @@ const FairnessOverrideSlider = ({ value, onChange }) => {
 
 // ── Main ArenaPanel component ──────────────────────────────────────────────────
 const ArenaPanel = () => {
-  const { scorecard, session, setFairnessOverride } = useEquiLens();
-  const f   = scorecard.fairness_score;
+  const { session, setFairnessOverride } = useEquiLens();
+  const scorecard = useEquiLens(state => state.scorecard);
+  const fairnessScore = useEquiLens(state => state.scorecard.fairness_score);
+  const f   = fairnessScore;
   const col = stateColor(f);
 
   return (
@@ -161,13 +163,13 @@ const ArenaPanel = () => {
           </div>
 
           {/* State badge + override slider */}
-          <div style={{ marginTop: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>ENTITY STATE</span>
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ENTITY STATE</span>
               <span style={{
-                padding: '2px 8px', borderRadius: '4px', fontSize: '9px', fontWeight: 700,
-                letterSpacing: '0.08em', border: '1px solid',
-                background: f >= 75 ? 'rgba(29,158,117,0.12)' : f >= 50 ? 'rgba(239,159,39,0.12)' : 'rgba(226,75,74,0.12)',
+                padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 800,
+                letterSpacing: '0.05em', border: '1px solid',
+                background: f >= 75 ? 'rgba(46,216,160,0.12)' : f >= 50 ? 'rgba(255,183,77,0.12)' : 'rgba(255,82,82,0.12)',
                 color: col, borderColor: `${col}44`,
               }}>
                 {stateLabel(f)}
@@ -192,16 +194,16 @@ const ArenaPanel = () => {
         </div>
 
         {/* DNA Tag Cloud */}
-        <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '14px 16px' }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
+        <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '16px 20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
             Bias DNA — Feature Infection Map
           </div>
           <DNACloud contributors={scorecard.bias_contributors} />
         </div>
-
+ 
         {/* Bias Contributors */}
-        <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '14px 16px', overflowY: 'auto' }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.13em', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
+        <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '16px 20px', overflowY: 'auto' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
             Top Bias Contributors
           </div>
           <BiasContributorList contributors={scorecard.bias_contributors} />

@@ -15,6 +15,15 @@ const DEFAULT_SCORECARD = {
 
 const DEFAULT_PARAMS = { gender: 74, balance: 30, thresh: 42, age: 60, race: 70 };
 
+// ── Maturity level mapping (replaces gamified level names for display) ────────
+export const getMaturityLevel = (xpTotal) => {
+  if (xpTotal >= 1000) return { label: 'Advanced',           short: 'ADV', color: '#2ed8a0' };
+  if (xpTotal >=  600) return { label: 'Proficient',         short: 'PRO', color: '#a09aff' };
+  if (xpTotal >=  300) return { label: 'Developing',         short: 'DEV', color: '#ffb74d' };
+  if (xpTotal >=  100) return { label: 'Basic Awareness',    short: 'BAS', color: '#ffb74d' };
+  return                      { label: 'Initial Assessment', short: 'INI', color: '#ff7070' };
+};
+
 const useEquiLens = create((set, get) => ({
   // ── Session ───────────────────────────────────────────────────────────────
   session: { session_id: null, uploaded: false, columns: [], target_col: '', protected_attrs: [] },
@@ -24,14 +33,19 @@ const useEquiLens = create((set, get) => ({
 
   // ── Scorecard ─────────────────────────────────────────────────────────────
   scorecard: DEFAULT_SCORECARD,
+  fairnessScore: DEFAULT_SCORECARD.fairness_score,
   initial_scorecard: null,
   backend_scorecard: null,
 
   // ── Navigation ───────────────────────────────────────────────────────────
   activeTab: 'arena',
+  currentStep: 1,         // 1-5 guided workflow steps
 
-  // ── XP / gamification ────────────────────────────────────────────────────
-  xp: { total: 0, level: 1, level_name: 'Bias Novice', next_level_xp: 100, badges: [] },
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  enterpriseMode: false,
+
+  // ── XP / gamification (kept for logic; display names are mapped above) ────
+  xp: { total: 0, level: 1, level_name: 'Initial Assessment', next_level_xp: 100, badges: [] },
 
   // ── UI state ──────────────────────────────────────────────────────────────
   isLoading: false,
@@ -48,6 +62,8 @@ const useEquiLens = create((set, get) => ({
   // ── ACTIONS ───────────────────────────────────────────────────────────────
 
   setActiveTab: (tab) => set({ activeTab: tab }),
+  setStep: (step) => set({ currentStep: Math.max(1, Math.min(5, step)) }),
+  toggleEnterpriseMode: () => set((s) => ({ enterpriseMode: !s.enterpriseMode })),
 
   pushActionHistory: (entry) => set((state) => ({
     actionHistory: [
@@ -62,6 +78,34 @@ const useEquiLens = create((set, get) => ({
   setSimulatorParams: async (params) => {
     const newParams = { ...get().simulatorParams, ...params };
     set({ simulatorParams: newParams });
+    
+    // --- OPTIMISTIC CLIENT-SIDE UPDATE ---
+    // If backend is unreachable or slow, UI needs instant reactivity
+    const sP = newParams;
+    const genderImpact = (74 - (sP.gender ?? 74)) * 0.4;
+    const balanceImpact = ((sP.balance ?? 30) - 30) * 0.3;
+    const threshImpact = ((sP.thresh ?? 42) - 42) * 0.2;
+    const ageImpact = ((sP.age ?? 60) - 60) * -0.2;
+    const raceImpact = ((sP.race ?? 70) - 70) * -0.3;
+    
+    const totalImpact = genderImpact + balanceImpact + threshImpact + ageImpact + raceImpact;
+    const baseFairness = get().baselineFairness || 34;
+    const simulatedFairness = Math.max(5, Math.min(95, Math.round(baseFairness + totalImpact)));
+
+    console.log("Updated fairness:", simulatedFairness); // Requested debug log
+    
+    set((state) => {
+      const f = simulatedFairness;
+      const updatedScorecard = {
+        ...state.scorecard,
+        fairness_score: f,
+        bias_index: 100 - f,
+        risk_level: f >= 75 ? 'LOW' : f >= 50 ? 'HIGH' : 'CRITICAL',
+        state: f >= 75 ? 'FAIR' : f >= 50 ? 'MODERATE' : 'BIASED',
+      };
+      return { scorecard: updatedScorecard, fairnessScore: f };
+    });
+
     try {
       const fd = new FormData();
       Object.entries(newParams).forEach(([k, v]) => fd.append(k, v));
@@ -69,21 +113,27 @@ const useEquiLens = create((set, get) => ({
       const res = await fetch(`${API_URL}/api/simulate`, { method: 'POST', body: fd });
       if (res.ok) {
         const data = await res.json();
-        set((state) => ({
-          scorecard: {
+        set((state) => {
+          const f = data.overall_fairness_score ?? state.scorecard.fairness_score;
+          const updatedScorecard = {
             ...state.scorecard,
-            fairness_score: data.overall_fairness_score ?? state.scorecard.fairness_score,
+            fairness_score: f,
             accuracy:       data.accuracy_proxy         ?? state.scorecard.accuracy,
             bias_index:     data.bias_index             ?? state.scorecard.bias_index,
             stability:      data.stability_index        ?? state.scorecard.stability,
-            risk_level:     data.overall_fairness_score >= 75 ? 'LOW' : data.overall_fairness_score >= 50 ? 'HIGH' : 'CRITICAL',
-            state:          data.overall_fairness_score >= 75 ? 'FAIR' : data.overall_fairness_score >= 50 ? 'MODERATE' : 'BIASED',
+            risk_level:     f >= 75 ? 'LOW' : f >= 50 ? 'HIGH' : 'CRITICAL',
+            state:          f >= 75 ? 'FAIR' : f >= 50 ? 'MODERATE' : 'BIASED',
             bias_contributors: data.bias_contributors   ?? state.scorecard.bias_contributors,
             group_fairness:    data.group_fairness      ?? state.scorecard.group_fairness,
-          }
-        }));
+          };
+          console.log("Updated fairness (Backend):", f);
+          return { scorecard: updatedScorecard, fairnessScore: f };
+        });
       }
-    } catch (e) { console.error('[simulate]', e); }
+    } catch (e) {
+      // Backend may be offline (demo/client mode) — silently ignore network errors
+      if (e.name !== 'AbortError') console.debug('[simulate] Backend unavailable:', e.message);
+    }
   },
 
   resetParams: () => {
@@ -111,11 +161,6 @@ const useEquiLens = create((set, get) => ({
     if (v > get().baselineFairness + 2) get().addXP(Math.round((v - get().baselineFairness) * 4));
   },
 
-  /**
-   * Apply an AI suggestion to the simulator params.
-   * The LLM suggestion carries a `paramAdjustments` map e.g. { gender: 15, balance: 80 }.
-   * If it's a special action like "autofix", we trigger that instead.
-   */
   applySuggestion: (suggestion) => {
     if (suggestion.action_type === 'autofix') {
       get().autoFix();
@@ -130,24 +175,27 @@ const useEquiLens = create((set, get) => ({
   /** Called by UploadSection with the raw API response */
   setSession: (sessionData) => set((state) => ({
     session: { ...state.session, ...sessionData, uploaded: true },
+    currentStep: 2, // Auto-advance to Analyze step after upload
   })),
 
   /** Maps the /api/upload response shape → internal scorecard */
   setScorecard: (data) => set((state) => {
     const f = data.fairness_score ?? state.scorecard.fairness_score;
+    const updatedScorecard = {
+      ...state.scorecard,
+      fairness_score:    f,
+      accuracy:          data.accuracy          ?? state.scorecard.accuracy,
+      bias_index:        data.fairness_score !== undefined ? Math.round(100 - f) : state.scorecard.bias_index,
+      stability:         data.stability         ?? state.scorecard.stability,
+      risk_level:        f >= 75 ? 'LOW' : f >= 50 ? 'HIGH' : 'CRITICAL',
+      state:             f >= 75 ? 'FAIR' : f >= 50 ? 'MODERATE' : 'BIASED',
+      bias_contributors: data.bias_contributors ?? state.scorecard.bias_contributors,
+      group_fairness:    data.group_fairness    ?? state.scorecard.group_fairness,
+      intersectionality: data.intersectionality ?? state.scorecard.intersectionality,
+    };
     return {
-      scorecard: {
-        ...state.scorecard,
-        fairness_score:    f,
-        accuracy:          data.accuracy          ?? state.scorecard.accuracy,
-        bias_index:        data.fairness_score !== undefined ? Math.round(100 - f) : state.scorecard.bias_index,
-        stability:         data.stability         ?? state.scorecard.stability,
-        risk_level:        f >= 75 ? 'LOW' : f >= 50 ? 'HIGH' : 'CRITICAL',
-        state:             f >= 75 ? 'FAIR' : f >= 50 ? 'MODERATE' : 'BIASED',
-        bias_contributors: data.bias_contributors ?? state.scorecard.bias_contributors,
-        group_fairness:    data.group_fairness    ?? state.scorecard.group_fairness,
-        intersectionality: data.intersectionality ?? state.scorecard.intersectionality,
-      },
+      scorecard: updatedScorecard,
+      fairnessScore: f,
       backend_scorecard: data,
     };
   }),
@@ -163,16 +211,16 @@ const useEquiLens = create((set, get) => ({
 
   addXP: (amount) => set((state) => {
     const t = state.xp.total + amount;
-    let level = 1, name = 'Bias Novice', next = 100;
-    if      (t >= 1000) { level = 5; name = 'AI Sentinel';       next = 2000; }
-    else if (t >=  600) { level = 4; name = 'AI Guardian';       next = 1000; }
-    else if (t >=  300) { level = 3; name = 'Ethics Advocate';   next = 600;  }
-    else if (t >=  100) { level = 2; name = 'Fairness Trainee';  next = 300;  }
+    let level = 1, name = 'Initial Assessment', next = 100;
+    if      (t >= 1000) { level = 5; name = 'Advanced';          next = 2000; }
+    else if (t >=  600) { level = 4; name = 'Proficient';        next = 1000; }
+    else if (t >=  300) { level = 3; name = 'Developing';        next = 600;  }
+    else if (t >=  100) { level = 2; name = 'Basic Awareness';   next = 300;  }
     const badges = [...state.xp.badges];
-    if (t >= 50  && !badges.includes('First Upload'))      badges.push('First Upload');
-    if (t >= 150 && !badges.includes('Fairness Improved')) badges.push('Fairness Improved');
-    if (t >= 350 && !badges.includes('Auto-Fixer'))        badges.push('Auto-Fixer');
-    if (t >= 800 && !badges.includes('Ethical Hero'))      badges.push('Ethical Hero');
+    if (t >=  50 && !badges.includes('First Upload'))         badges.push('First Upload');
+    if (t >= 150 && !badges.includes('Fairness Improved'))    badges.push('Fairness Improved');
+    if (t >= 350 && !badges.includes('Auto-Fixer'))           badges.push('Auto-Fixer');
+    if (t >= 800 && !badges.includes('Compliance Certified')) badges.push('Compliance Certified');
     return { xp: { total: t, level, level_name: name, next_level_xp: next, badges } };
   }),
 

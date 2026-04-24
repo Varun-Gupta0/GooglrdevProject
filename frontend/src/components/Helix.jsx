@@ -137,50 +137,112 @@ const DNAHelixScene = () => {
   const allFixed      = fixedCount >= infectedCount;
 
   return (
-    <div className="flex flex-col h-full gap-2">
-      <p className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>
-        3D DNA HELIX — CLICK RED SPHERES TO FIX INFECTED FEATURES
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      gap: 8,
+    }}>
+      <p style={{
+        fontSize: 9,
+        textTransform: 'uppercase',
+        letterSpacing: '0.12em',
+        fontWeight: 700,
+        color: 'var(--text-muted)',
+        margin: 0,
+        flexShrink: 0,
+      }}>
+        Bias DNA Visualizer — Click red nodes to fix
       </p>
 
-      <div style={{ 
-        flex: 1, 
-        minHeight: '280px', 
-        borderRadius: '12px', 
-        overflow: 'hidden', 
-        background: 'radial-gradient(circle at 50% 40%, #1c2642 0%, #0a0e1a 70%, #05070f 100%)', 
-        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.9), 0 0 30px rgba(28, 38, 66, 0.4)', 
+      {/* Canvas wrapper — flex center ensures Three.js canvas is always centered */}
+      <div style={{
+        flex: 1,
+        minHeight: 240,
+        maxHeight: 380,
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: 'radial-gradient(circle at 50% 40%, #1c2642 0%, #0a0e1a 70%, #05070f 100%)',
+        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.9), 0 0 30px rgba(28,38,66,0.4)',
         border: '1px solid rgba(255,255,255,0.05)',
         cursor: 'pointer',
-        position: 'relative'
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
       }}>
-        <Canvas camera={{ position: [0, 0, 6], fov: 55 }} gl={{ antialias: true, alpha: true }} dpr={[1, 2]}>
+        <Canvas
+          camera={{ position: [0, 0, 6], fov: 55 }}
+          gl={{ antialias: true, alpha: true }}
+          dpr={[1, 1.5]}
+          style={{ width: '100%', height: '100%', display: 'block' }}
+        >
           <ambientLight intensity={0.3} color="#ffffff" />
-          <pointLight position={[3, 2, 3]}  intensity={2.2}   color="#ff4d4d" />
+          <pointLight position={[3,   2,  3]} intensity={2.2} color="#ff4d4d" />
           <pointLight position={[-3, -2, -3]} intensity={1.8} color="#4d4dff" />
-          <pointLight position={[0, 5, 0]}  intensity={1.0} color="#ffffff" />
+          <pointLight position={[0,   5,  0]} intensity={1.0} color="#ffffff" />
           <HelixContent fixedNodes={fixedNodes} onFix={handleFix} />
         </Canvas>
+
+        {/* Overlay label */}
+        {allFixed && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: 12,
+            flexDirection: 'column',
+            gap: 8,
+            animation: 'helix-fadein 0.4s ease',
+          }}>
+            <div style={{ fontSize: 32 }}>✅</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#2ed8a0' }}>All nodes fixed!</div>
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '0 2px' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Total: <b style={{ color: 'var(--text-primary)' }}>{N}</b></span>
-        <span style={{ color: '#ff7070' }}>Infected: <b>{infectedCount - fixedCount}</b></span>
-        <span style={{ color: '#2ed8a0' }}>Fixed: <b>{fixedCount}</b></span>
+      {/* Stats row */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: 11,
+        padding: '0 2px',
+        flexShrink: 0,
+      }}>
+        <span style={{ color: 'var(--text-muted)' }}>
+          Total: <b style={{ color: 'var(--text-primary)' }}>{N}</b>
+        </span>
+        <span style={{ color: '#ff7070' }}>
+          Biased: <b>{infectedCount - fixedCount}</b>
+        </span>
+        <span style={{ color: '#2ed8a0' }}>
+          Fixed: <b>{fixedCount}</b>
+        </span>
       </div>
 
+      {/* Reset button */}
       <button
         onClick={handleReset}
         style={{
-          width: '100%', padding: '8px 16px', borderRadius: '8px', fontFamily: 'inherit',
-          fontSize: '11px', fontWeight: 700, cursor: 'pointer', border: '1px solid',
-          background: allFixed ? 'rgba(29,158,117,0.12)' : 'rgba(255,255,255,0.04)',
-          borderColor: allFixed ? 'rgba(29,158,117,0.3)' : 'rgba(255,255,255,0.08)',
-          color: allFixed ? '#2ed8a0' : 'rgba(200,200,224,0.5)',
-          letterSpacing: '0.08em', transition: 'all 0.2s',
+          width: '100%', padding: '8px 16px', borderRadius: 8,
+          fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+          cursor: 'pointer', border: '1px solid',
+          letterSpacing: '0.06em', transition: 'all 0.2s', flexShrink: 0,
+          background:   allFixed ? 'rgba(29,158,117,0.12)' : 'rgba(255,255,255,0.04)',
+          borderColor:  allFixed ? 'rgba(29,158,117,0.3)'  : 'rgba(255,255,255,0.08)',
+          color:        allFixed ? '#2ed8a0'                : 'rgba(200,200,224,0.5)',
         }}
       >
         {allFixed ? '✓ ALL FIXED — RESET' : '↺ RESET HELIX'}
       </button>
+
+      <style>{`
+        @keyframes helix-fadein { from{opacity:0} to{opacity:1} }
+      `}</style>
     </div>
   );
 };
