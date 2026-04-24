@@ -14,7 +14,7 @@
  * Each step waits 900 ms so every chart animates visibly before the next fires.
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import useEquiLens from '../store/useEquiLens';
 
 // ─── Demo step definitions ────────────────────────────────────────────────────
@@ -191,6 +191,31 @@ const DemoMode = () => {
   const [open,        setOpen]        = useState(false);    // panel expanded
   const cancelRef = useRef(false);
 
+  // ── Drag state ──────────────────────────────────────────────────────────────
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+
+  const handlePointerDown = (e) => {
+    if (e.target.closest('button')) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY, posX: position.x, posY: position.y };
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    setPosition({ x: dragStartRef.current.posX + dx, y: dragStartRef.current.posY + dy });
+  };
+
+  const handlePointerUp = (e) => {
+    if (!isDragging) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) {}
+    setIsDragging(false);
+  };
+
   // ── Seed demo session so AI panel and FinalSummaryPanel activate ────────────
   const seedDemoSession = useCallback(async () => {
     const startScore = projectScore(DEMO_START);
@@ -248,6 +273,7 @@ const DemoMode = () => {
     setCurrentStep(-1);
     setStepStates({});
     setOpen(true);
+    setPosition({ x: 0, y: 0 });
 
     // Step 0: inject broken start state
     await seedDemoSession();
@@ -303,6 +329,7 @@ const DemoMode = () => {
     setStepStates({});
     setScoreFrom(0);
     setScoreTo(0);
+    setPosition({ x: 0, y: 0 });
   };
 
   // ── Button (collapsed state) ─────────────────────────────────────────────────
@@ -346,150 +373,182 @@ const DemoMode = () => {
       {/* ── Floating demo panel ────────────────────────────────────────────── */}
       {(phase !== 'idle' || open) && open && (
         <div style={{
-          position: 'fixed', top: '64px', right: '18px', zIndex: 9999,
-          width: '350px', maxWidth: 'calc(100vw - 36px)',
-          background: 'rgba(7,7,14,0.97)', backdropFilter: 'blur(24px)',
-          border: `1px solid ${
-            phase === 'done' ? 'rgba(46,216,160,0.35)'
-            : phase === 'running' && scoreTo < 40 ? 'rgba(255,112,112,0.35)'
-            : 'rgba(127,119,221,0.25)'
-          }`,
-          borderRadius: '12px', padding: '14px 15px',
-          boxShadow: phase === 'done'
-            ? '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(46,216,160,0.12)'
-            : phase === 'running' && scoreTo < 40
-              ? '0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(255,112,112,0.1)'
-              : '0 20px 60px rgba(0,0,0,0.6)',
-          animation: 'dm-enter 0.35s cubic-bezier(0.22,1,0.36,1)',
-          display: 'flex', flexDirection: 'column', gap: '10px',
-          transition: 'border-color 0.5s, box-shadow 0.5s',
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          zIndex: 9999, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(2px)',
+          WebkitBackdropFilter: 'blur(2px)', display: 'flex', justifyContent: 'center',
+          alignItems: 'center', animation: 'dm-overlay-enter 0.3s ease',
+          padding: '20px'
         }}>
-
-          {/* Header row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px' }}>🚀</span>
-              <div>
-                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', color: '#fff' }}>LIVE FIX DEMO</div>
-                <div style={{ fontSize: '8px', color: 'rgba(200,200,224,0.35)', letterSpacing: '0.07em' }}>HIRING AI · BIAS REMEDIATION · EQUILENS</div>
-              </div>
-            </div>
-            <button onClick={reset} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '3px 8px', color: 'rgba(200,200,224,0.35)', fontSize: '9px', cursor: 'pointer', fontFamily: 'inherit' }}>
-              RESET
-            </button>
-          </div>
-
-          {/* ── HOOK: initial warning banner (shown right after seed, before steps) ── */}
-          {scoreFrom > 0 && phase === 'running' && currentStep === 0 && (
-            <div style={{
-              padding: '9px 12px', borderRadius: '8px',
-              background: 'rgba(255,112,112,0.09)', border: '1px solid rgba(255,112,112,0.3)',
-              animation: 'dm-fadein 0.4s ease',
-              boxShadow: '0 0 20px rgba(255,112,112,0.08)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px' }}>⚠️</span>
-                <span style={{ fontSize: '10px', fontWeight: 800, color: '#ff7070', letterSpacing: '0.05em' }}>
-                  This AI system is currently biased and unsafe to deploy.
-                </span>
-              </div>
-              <div style={{ fontSize: '9px', color: 'rgba(255,112,112,0.6)', lineHeight: 1.8, paddingLeft: '20px' }}>
-                Non-compliant AI systems can violate fairness regulations (GDPR Art. 22, EU AI Act).
-                EquiLens will now remediate this automatically.
-              </div>
-            </div>
-          )}
-
-          {/* Score transition */}
-          {scoreFrom > 0 && (
-            <div style={{
-              background: phase === 'done'
-                ? 'rgba(46,216,160,0.04)'
-                : scoreTo < 40 ? 'rgba(255,112,112,0.04)' : 'rgba(255,255,255,0.02)',
+          <div style={{
+            transform: `translate(${position.x}px, ${position.y}px)`,
+            transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+            width: '100%', maxWidth: '700px'
+          }}>
+            <div className="custom-scrollbar" style={{
+              width: '100%', maxHeight: '85vh', overflowY: 'auto',
+              background: '#0a0e14',
               border: `1px solid ${
-                phase === 'done' ? 'rgba(46,216,160,0.2)'
-                : scoreTo < 40 ? 'rgba(255,112,112,0.18)' : 'rgba(255,255,255,0.07)'
+                phase === 'done' ? 'rgba(46,216,160,0.35)'
+                : phase === 'running' && scoreTo < 40 ? 'rgba(255,112,112,0.35)'
+                : 'rgba(127,119,221,0.25)'
               }`,
-              borderRadius: '8px',
-              transition: 'background 0.5s, border-color 0.5s',
+              borderRadius: '16px', padding: '24px 28px',
+              boxShadow: phase === 'done'
+                ? '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(46,216,160,0.12)'
+                : phase === 'running' && scoreTo < 40
+                  ? '0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(255,112,112,0.1)'
+                  : '0 20px 60px rgba(0,0,0,0.6)',
+              animation: 'dm-panel-enter 0.4s cubic-bezier(0.22,1,0.36,1)',
+              display: 'flex', flexDirection: 'column', gap: '16px',
+              transition: 'border-color 0.5s, box-shadow 0.5s',
             }}>
-              <ScoreTransition from={scoreFrom} to={scoreTo} isDone={phase === 'done'} />
-              <div style={{ textAlign: 'center', padding: '0 0 10px', fontSize: '9px', letterSpacing: '0.1em', fontWeight: 700, color: sevColor(scoreTo), transition: 'color 0.5s' }}>
-                {sevLabel(scoreFrom)} → {sevLabel(scoreTo)}
+
+              {/* Header row */}
+              <div 
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: isDragging ? 'grabbing' : 'grab' }}
+              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '18px' }}>🚀</span>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.1em', color: '#fff' }}>LIVE FIX DEMO</div>
+                  <div style={{ fontSize: '9px', color: 'rgba(200,200,224,0.4)', letterSpacing: '0.07em', marginTop: '2px' }}>HIRING AI · BIAS REMEDIATION · EQUILENS</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button onPointerDown={e => e.stopPropagation()} onClick={reset} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', color: 'rgba(200,200,224,0.6)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = 'rgba(200,200,224,0.6)'; }}
+                >
+                  RESET
+                </button>
+                <button onPointerDown={e => e.stopPropagation()} onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', padding: '4px', color: 'rgba(255,255,255,0.4)', fontSize: '18px', cursor: 'pointer', lineHeight: 1, transition: 'color 0.2s' }}
+                  onMouseOver={(e) => e.currentTarget.style.color = '#fff'}
+                  onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+                >
+                  ✕
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Step list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {DEMO_STEPS.map((step, i) => (
-              <StepRow
-                key={i}
-                step={step}
-                state={stepStates[i] ?? 'pending'}
-              />
-            ))}
+            {/* ── HOOK: initial warning banner (shown right after seed, before steps) ── */}
+            {scoreFrom > 0 && phase === 'running' && currentStep === 0 && (
+              <div style={{
+                padding: '12px 16px', borderRadius: '10px',
+                background: 'rgba(255,112,112,0.09)', border: '1px solid rgba(255,112,112,0.3)',
+                animation: 'dm-fadein 0.4s ease',
+                boxShadow: '0 0 20px rgba(255,112,112,0.08)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '15px' }}>⚠️</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#ff7070', letterSpacing: '0.05em' }}>
+                    This AI system is currently biased and unsafe to deploy.
+                  </span>
+                </div>
+                <div style={{ fontSize: '10px', color: 'rgba(255,112,112,0.7)', lineHeight: 1.6, paddingLeft: '24px' }}>
+                  Non-compliant AI systems can violate fairness regulations (GDPR Art. 22, EU AI Act).
+                  EquiLens will now remediate this automatically.
+                </div>
+              </div>
+            )}
+
+            {/* Score transition */}
+            {scoreFrom > 0 && (
+              <div style={{
+                background: phase === 'done'
+                  ? 'rgba(46,216,160,0.04)'
+                  : scoreTo < 40 ? 'rgba(255,112,112,0.04)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${
+                  phase === 'done' ? 'rgba(46,216,160,0.2)'
+                  : scoreTo < 40 ? 'rgba(255,112,112,0.18)' : 'rgba(255,255,255,0.07)'
+                }`,
+                borderRadius: '12px',
+                padding: '16px',
+                transition: 'background 0.5s, border-color 0.5s',
+              }}>
+                <ScoreTransition from={scoreFrom} to={scoreTo} isDone={phase === 'done'} />
+                <div style={{ textAlign: 'center', padding: '0 0 4px', fontSize: '10px', letterSpacing: '0.1em', fontWeight: 700, color: sevColor(scoreTo), transition: 'color 0.5s' }}>
+                  {sevLabel(scoreFrom)} → {sevLabel(scoreTo)}
+                </div>
+              </div>
+            )}
+
+            {/* Step list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {DEMO_STEPS.map((step, i) => (
+                <StepRow
+                  key={i}
+                  step={step}
+                  state={stepStates[i] ?? 'pending'}
+                />
+              ))}
+            </div>
+
+            {/* ── DONE: transformation success banner ─────────────────────────── */}
+            {phase === 'done' && isFair && (
+              <div style={{
+                padding: '16px 20px', borderRadius: '12px',
+                background: 'rgba(46,216,160,0.09)', border: '1px solid rgba(46,216,160,0.3)',
+                textAlign: 'center',
+                boxShadow: '0 0 28px rgba(46,216,160,0.12)',
+                animation: 'dm-fadein 0.5s ease',
+              }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px', animation: 'dm-celebrate 0.7s cubic-bezier(0.22,1,0.36,1)' }}>✅</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#2ed8a0', marginBottom: '8px', letterSpacing: '0.04em' }}>
+                  System is now FAIR, compliant, and ready for deployment.
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(200,200,224,0.6)', lineHeight: 1.6, marginBottom: '12px' }}>
+                  Fairness score reached <strong style={{ color: '#2ed8a0' }}>{scoreTo}/100</strong> — above the 75-point compliance threshold.
+                  All <strong style={{ color: '#ff7070' }}>CRITICAL</strong> and <strong style={{ color: '#ffb74d' }}>HIGH</strong> severity flags have been cleared.
+                </div>
+                {/* Legal context */}
+                <div style={{
+                  fontSize: '9.5px', color: 'rgba(200,200,224,0.4)', lineHeight: 1.5,
+                  borderTop: '1px solid rgba(46,216,160,0.15)', paddingTop: '12px',
+                }}>
+                  ⚖ Now compliant with GDPR Art. 22 & EU AI Act fairness requirements.
+                  Non-compliant systems risk fines and deployment bans.
+                </div>
+                {/* Attribution */}
+                <div style={{
+                  marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  fontSize: '10px', fontWeight: 700, color: '#a09aff',
+                  background: 'rgba(127,119,221,0.1)', border: '1px solid rgba(127,119,221,0.25)',
+                  borderRadius: '20px', padding: '4px 14px',
+                }}>
+                  <span>⚡</span>
+                  <span>Fixed in {DEMO_STEPS.length} steps using EquiLens</span>
+                </div>
+              </div>
+            )}
+
+            {/* Progress bar */}
+            {phase === 'running' && (
+              <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: '2px',
+                  width: `${Math.round(((currentStep + 1) / DEMO_STEPS.length) * 100)}%`,
+                  background: 'linear-gradient(90deg, #534AB7, #7F77DD)',
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+            )}
+
+            {/* Footer note */}
+            <div style={{ fontSize: '9px', color: 'rgba(200,200,224,0.3)', textAlign: 'center', letterSpacing: '0.08em', marginTop: '4px' }}>
+              All changes use live /api/simulate · No fake data
+            </div>
           </div>
-
-          {/* ── DONE: transformation success banner ─────────────────────────── */}
-          {phase === 'done' && isFair && (
-            <div style={{
-              padding: '13px 14px', borderRadius: '8px',
-              background: 'rgba(46,216,160,0.09)', border: '1px solid rgba(46,216,160,0.3)',
-              textAlign: 'center',
-              boxShadow: '0 0 28px rgba(46,216,160,0.12)',
-              animation: 'dm-fadein 0.5s ease',
-            }}>
-              <div style={{ fontSize: '22px', marginBottom: '6px', animation: 'dm-celebrate 0.7s cubic-bezier(0.22,1,0.36,1)' }}>✅</div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#2ed8a0', marginBottom: '5px', letterSpacing: '0.04em' }}>
-                System is now FAIR, compliant, and ready for deployment.
-              </div>
-              <div style={{ fontSize: '9px', color: 'rgba(200,200,224,0.5)', lineHeight: 1.7, marginBottom: '8px' }}>
-                Fairness score reached <strong style={{ color: '#2ed8a0' }}>{scoreTo}/100</strong> — above the 75-point compliance threshold.
-                All <strong style={{ color: '#ff7070' }}>CRITICAL</strong> and <strong style={{ color: '#ffb74d' }}>HIGH</strong> severity flags have been cleared.
-              </div>
-              {/* Legal context */}
-              <div style={{
-                fontSize: '8.5px', color: 'rgba(200,200,224,0.32)', lineHeight: 1.6,
-                borderTop: '1px solid rgba(46,216,160,0.12)', paddingTop: '8px',
-              }}>
-                ⚖ Now compliant with GDPR Art. 22 & EU AI Act fairness requirements.
-                Non-compliant systems risk fines and deployment bans.
-              </div>
-              {/* Attribution */}
-              <div style={{
-                marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '5px',
-                fontSize: '9px', fontWeight: 700, color: '#a09aff',
-                background: 'rgba(127,119,221,0.1)', border: '1px solid rgba(127,119,221,0.22)',
-                borderRadius: '20px', padding: '3px 11px',
-              }}>
-                <span>⚡</span>
-                <span>Fixed in {DEMO_STEPS.length} steps using EquiLens</span>
-              </div>
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {phase === 'running' && (
-            <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: '2px',
-                width: `${Math.round(((currentStep + 1) / DEMO_STEPS.length) * 100)}%`,
-                background: 'linear-gradient(90deg, #534AB7, #7F77DD)',
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-          )}
-
-          {/* Footer note */}
-          <div style={{ fontSize: '8px', color: 'rgba(200,200,224,0.2)', textAlign: 'center', letterSpacing: '0.06em' }}>
-            All changes use live /api/simulate · No fake data
           </div>
         </div>
       )}
 
       <style>{`
-        @keyframes dm-enter        { from{opacity:0;transform:translateY(-10px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes dm-overlay-enter { from{opacity:0} to{opacity:1} }
+        @keyframes dm-panel-enter  { from{opacity:0;transform:scale(0.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
         @keyframes dm-fadein       { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
         @keyframes dm-pulse        { 0%,100%{opacity:1} 50%{opacity:0.25} }
         @keyframes dm-spin         { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }

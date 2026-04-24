@@ -67,8 +67,8 @@ const NeuralContent = () => {
             <meshPhongMaterial
               color={color}
               emissive={color}
-              emissiveIntensity={bias > 0.6 ? 0.4 : 0.15}
-              shininess={80}
+              emissiveIntensity={bias > 0.6 ? 0.9 : 0.45}
+              shininess={100}
             />
           </mesh>
         );
@@ -77,7 +77,7 @@ const NeuralContent = () => {
       {/* Edges */}
       <lineSegments>
         <bufferGeometry setFromPoints={EDGES} />
-        <lineBasicMaterial color="#191944" transparent opacity={0.6} />
+        <lineBasicMaterial color="#7F77DD" transparent opacity={0.8} />
       </lineSegments>
     </group>
   );
@@ -88,11 +88,11 @@ const NeuralNetworkScene = () => {
 
   return (
     <div className="w-full flex flex-col gap-2">
-      <div style={{ height: '255px', borderRadius: '8px', overflow: 'hidden', background: 'radial-gradient(circle at center, #fdfdff 0%, #f1f5f9 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.05)' }}>
+      <div style={{ height: '255px', borderRadius: '8px', overflow: 'hidden', background: 'radial-gradient(circle at center, #1a1f2e 0%, #0a0f1c 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)' }}>
         <Canvas camera={{ position: [0, 0, 5.8], fov: 60 }} gl={{ antialias: true, alpha: true }} dpr={[1, 2]}>
-          <ambientLight intensity={0.1} color="#111122" />
-          <pointLight position={[5, 5, 5]}  intensity={1.2} color="#5555ff" />
-          <pointLight position={[-5, -3, -5]} intensity={0.5} color="#ff3333" />
+          <ambientLight intensity={0.25} color="#ffffff" />
+          <pointLight position={[5, 5, 5]}  intensity={2.0} color="#7F77DD" />
+          <pointLight position={[-5, -3, -5]} intensity={1.2} color="#ff4d4d" />
           <NeuralContent />
           <OrbitControls enableZoom={false} rotateSpeed={0.6} />
         </Canvas>

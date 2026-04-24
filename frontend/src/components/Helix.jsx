@@ -49,8 +49,8 @@ const HelixNode = ({ node, fixed, onClick }) => {
       <meshPhongMaterial
         color={color}
         emissive={color}
-        emissiveIntensity={infected ? 0.3 : 0.1}
-        shininess={90}
+        emissiveIntensity={infected ? 0.8 : 0.45}
+        shininess={120}
       />
     </mesh>
   );
@@ -92,7 +92,12 @@ const HelixContent = ({ fixedNodes, onFix }) => {
           {/* Strand B node (always purple, not interactive) */}
           <mesh position={node.posB}>
             <sphereGeometry args={[0.11, 10, 10]} />
-            <meshPhongMaterial color="#7F77DD" emissive="#080010" shininess={80} />
+            <meshPhongMaterial 
+              color="#7F77DD" 
+              emissive="#7F77DD" 
+              emissiveIntensity={0.5} 
+              shininess={100} 
+            />
           </mesh>
 
           {/* Connecting rung */}
@@ -137,12 +142,22 @@ const DNAHelixScene = () => {
         3D DNA HELIX — CLICK RED SPHERES TO FIX INFECTED FEATURES
       </p>
 
-      <div style={{ flex: 1, minHeight: '280px', borderRadius: '8px', overflow: 'hidden', background: 'radial-gradient(circle at center, #1a1f2e 0%, #0a0f1c 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
+      <div style={{ 
+        flex: 1, 
+        minHeight: '280px', 
+        borderRadius: '12px', 
+        overflow: 'hidden', 
+        background: 'radial-gradient(circle at 50% 40%, #1c2642 0%, #0a0e1a 70%, #05070f 100%)', 
+        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.9), 0 0 30px rgba(28, 38, 66, 0.4)', 
+        border: '1px solid rgba(255,255,255,0.05)',
+        cursor: 'pointer',
+        position: 'relative'
+      }}>
         <Canvas camera={{ position: [0, 0, 6], fov: 55 }} gl={{ antialias: true, alpha: true }} dpr={[1, 2]}>
-          <ambientLight intensity={0.1} color="#111122" />
-          <pointLight position={[3, 2, 3]}  intensity={1}   color="#ff3333" />
-          <pointLight position={[-3, -2, -3]} intensity={0.8} color="#3333ff" />
-          <pointLight position={[0, 5, 0]}  intensity={0.5} color="#ffffff" />
+          <ambientLight intensity={0.3} color="#ffffff" />
+          <pointLight position={[3, 2, 3]}  intensity={2.2}   color="#ff4d4d" />
+          <pointLight position={[-3, -2, -3]} intensity={1.8} color="#4d4dff" />
+          <pointLight position={[0, 5, 0]}  intensity={1.0} color="#ffffff" />
           <HelixContent fixedNodes={fixedNodes} onFix={handleFix} />
         </Canvas>
       </div>
