@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import useEquiLens from '../store/useEquiLens';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const UploadSection = () => {
   const fileRef = useRef(null);

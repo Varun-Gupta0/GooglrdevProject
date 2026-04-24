@@ -65,7 +65,8 @@ const useEquiLens = create((set, get) => ({
     try {
       const fd = new FormData();
       Object.entries(newParams).forEach(([k, v]) => fd.append(k, v));
-      const res = await fetch('http://localhost:8000/api/simulate', { method: 'POST', body: fd });
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${API_URL}/api/simulate`, { method: 'POST', body: fd });
       if (res.ok) {
         const data = await res.json();
         set((state) => ({
