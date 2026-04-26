@@ -6,6 +6,8 @@
 
 import React, { useState } from 'react';
 import useEquiLens from '../store/useEquiLens';
+import { db } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 const REGS = [
   { id: 'GDPR_Art_22',  name: 'GDPR Art. 22',  threshold: 75 },
@@ -78,6 +80,7 @@ const ExportReportModule = () => {
   const scorecard = useEquiLens(state => state.scorecard);
   const fairnessScore = useEquiLens(state => state.scorecard.fairness_score);
   const [downloaded, setDownloaded] = useState(false);
+  const [savingStatus, setSavingStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const f = fairnessScore;
 
   const report = buildReport({ scorecard, baselineFairness, session, actionHistory, xp });
@@ -146,6 +149,30 @@ const ExportReportModule = () => {
 
   const downloadPDF = () => window.print();
 
+  const saveReportToFirebase = async () => {
+    setSavingStatus('loading');
+    try {
+      const docData = {
+        timestamp: Date.now(),
+        dataset_name: session.target_col || 'Dataset',
+        fairness_score: f,
+        compliance_status: f >= 75 ? "FAIR" : f >= 50 ? "MODERATE" : f >= 40 ? "HIGH" : "CRITICAL",
+        actions_applied: actionHistory.map(a => a.instruction),
+        report: report
+      };
+      
+      const reportsRef = collection(db, "reports");
+      await addDoc(reportsRef, docData);
+      
+      setSavingStatus('success');
+      setTimeout(() => setSavingStatus('idle'), 5000);
+    } catch (error) {
+      console.error("[ExportReport] Firebase save failed: ", error);
+      setSavingStatus('error');
+      setTimeout(() => setSavingStatus('idle'), 5000);
+    }
+  };
+
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -185,15 +212,30 @@ const ExportReportModule = () => {
 
         {/* Download buttons */}
         <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'stretch', minWidth:200 }}>
+          {/* Save to Cloud (Firebase) */}
+          <button onClick={saveReportToFirebase}
+            disabled={savingStatus === 'loading' || savingStatus === 'success'}
+            style={{
+              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+              padding:'11px 22px', borderRadius:9, fontSize:14, fontWeight:700,
+              fontFamily:'inherit', cursor: (savingStatus === 'loading' || savingStatus === 'success') ? 'default' : 'pointer', border:'none',
+              background: savingStatus === 'success' ? 'rgba(46,216,160,0.18)' : savingStatus === 'error' ? 'rgba(255,112,112,0.18)' : 'var(--accent-purple)',
+              color: savingStatus === 'success' ? '#2ed8a0' : savingStatus === 'error' ? '#ff7070' : '#fff', transition:'all 0.25s',
+              boxShadow: savingStatus === 'idle' ? '0 2px 12px rgba(0,0,0,0.2)' : 'none',
+              opacity: savingStatus === 'loading' ? 0.7 : 1,
+            }}>
+            {savingStatus === 'loading' ? 'Saving...' :
+             savingStatus === 'success' ? '✔ Saved to Cloud' :
+             savingStatus === 'error' ? 'Failed to save' : '☁️ Save Compliance Report'}
+          </button>
           {/* JSON */}
           <button onClick={downloadJSON}
             style={{
               display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-              padding:'11px 22px', borderRadius:9, fontSize:14, fontWeight:700,
-              fontFamily:'inherit', cursor:'pointer', border:'none',
-              background: downloaded ? 'rgba(46,216,160,0.18)' : 'var(--accent-purple)',
-              color: downloaded ? '#2ed8a0' : '#fff', transition:'all 0.25s',
-              boxShadow:'0 2px 12px rgba(0,0,0,0.2)',
+              padding:'9px 22px', borderRadius:9, fontSize:13, fontWeight:700,
+              fontFamily:'inherit', cursor:'pointer',
+              background:'rgba(46,216,160,0.08)', border:'1px solid rgba(46,216,160,0.25)',
+              color:'#2ed8a0', transition:'all 0.2s',
             }}>
             {downloaded ? '✓ JSON Downloaded' : '↓ Download JSON'}
           </button>
@@ -219,6 +261,9 @@ const ExportReportModule = () => {
             }}>
             ⎙ Print / Save PDF
           </button>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>
+            Reports are securely stored for compliance tracking.
+          </div>
         </div>
       </div>
 

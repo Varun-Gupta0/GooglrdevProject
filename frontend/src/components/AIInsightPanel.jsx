@@ -12,30 +12,27 @@ import ChangeFeedbackPanel from './ChangeFeedbackPanel';
 import FinalSummaryPanel from './FinalSummaryPanel';
 import { getMaturityLevel } from '../store/useEquiLens';
 
-// ── OpenRouter (optional fallback path) ───────────────────────────────────────
-const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
-const HAS_API_KEY    = !!OPENROUTER_KEY && !OPENROUTER_KEY.includes('your_openrouter');
+// ── Gemini API (Primary AI Path) ──────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-const callOpenRouter = async (scorecard) => {
-  const top3   = (scorecard.bias_contributors || []).slice(0, 3).map(c => `${c.feature} (bias: ${c.score ?? 0}/100)`).join('; ');
-  const groups = (scorecard.group_fairness || []).map(g => `${g.name}: ${g.fairness}%`).join(', ');
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+const fetchGeminiInsights = async (scorecard) => {
+  const res = await fetch(`${API_BASE}/api/ai-insights`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENROUTER_KEY}`, 'HTTP-Referer': window.location.origin, 'X-Title': 'EquiLens' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      messages: [{ role: 'user', content: `Fairness audit. Score: ${scorecard.fairness_score}/100. Bias: ${top3}. Groups: ${groups}.\nRespond ONLY as JSON with keys: diagnosis, cause, confidence, confidence_reason, severity, actions[]{instruction,reason,mechanism,before,after,expected_result,paramAdjustments}` }],
-      max_tokens: 1000, temperature: 0.05,
-    }),
+      fairness_score: scorecard.fairness_score,
+      bias_contributors: scorecard.bias_contributors || [],
+      selection_rates: scorecard.selection_rates || {}
+    })
   });
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
   const data = await res.json();
-  const raw  = data.choices?.[0]?.message?.content?.trim() ?? '{}';
-  const s    = raw.indexOf('{'), e = raw.lastIndexOf('}');
-  if (s === -1) throw new Error('Bad JSON');
-  const p = JSON.parse(raw.slice(s, e + 1));
-  if (p.suggestions && !p.actions) p.actions = p.suggestions;
-  return p;
+  
+  // Map 'suggestions' from API to 'actions' expected by the UI
+  if (data.suggestions && !data.actions) {
+    data.actions = data.suggestions;
+  }
+  return data;
 };
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -75,9 +72,9 @@ const ConfidenceMeter = ({ value, reason }) => {
 };
 
 const SourceBadge = ({ source }) => {
-  const isAI = source === 'openrouter';
+  const isAI = source === 'gemini';
   const col  = isAI ? 'var(--accent-purple)' : 'var(--state-fair)';
-  return <span style={{ fontSize: '10px', fontWeight: 800, color: col, background: `${col}18`, border: `1px solid ${col}30`, borderRadius: '4px', padding: '2px 8px', letterSpacing: '0.04em' }}>{isAI ? '⚡ AI AUDIT' : '◈ RULES ENGINE'}</span>;
+  return <span style={{ fontSize: '10px', fontWeight: 800, color: col, background: `${col}18`, border: `1px solid ${col}30`, borderRadius: '4px', padding: '2px 8px', letterSpacing: '0.04em' }}>{isAI ? '⚡ GEMINI AI' : '◈ RULES ENGINE'}</span>;
 };
 
 const Skeleton = () => (
@@ -232,14 +229,31 @@ const AIInsightPanel = () => {
     setApplied({});
     setFeedback(f => ({ ...f, visible: false }));
 
-    if (HAS_API_KEY) {
-      try {
-        const result = await callOpenRouter(scorecard);
-        setInsights(result); setSource('openrouter'); setStatus('done'); addXP(30);
-        return;
-      } catch (e) { console.warn('[AIInsight] OpenRouter failed:', e.message); }
+    try {
+      const result = await fetchGeminiInsights(scorecard);
+      // We still use the robust deterministic calculations for confidence/severity
+      // since the LLM might hallucinate numbers or omit them
+      const localInsights = generateInsights({
+        fairness_score: scorecard.fairness_score,
+        bias_contributors: scorecard.bias_contributors,
+        selection_rates: scorecard.selection_rates ?? {},
+        group_fairness: scorecard.group_fairness,
+        simulatorParams,
+      });
+      
+      setInsights({
+        ...localInsights, // Base structure with calculated stats
+        diagnosis: result.diagnosis || localInsights.diagnosis,
+        cause: result.cause || localInsights.cause,
+        actions: (result.actions && result.actions.length > 0) ? result.actions : localInsights.actions
+      });
+      setSource('gemini'); setStatus('done'); addXP(30);
+      return;
+    } catch (e) {
+      console.warn('[AIInsight] Gemini API failed or unavailable, falling back to Rules Engine:', e.message);
     }
 
+    // ── FALLBACK ──
     try {
       await new Promise(r => setTimeout(r, 480));
       const result = generateInsights({

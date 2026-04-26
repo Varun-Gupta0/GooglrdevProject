@@ -1,9 +1,31 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+import google.generativeai as genai
+if API_KEY and API_KEY != "your_gemini_api_key":
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    model = None
+
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import pandas as pd
 from typing import List, Optional
 import json
+import os
+import google.generativeai as genai
+from pydantic import BaseModel
+
+class InsightRequest(BaseModel):
+    fairness_score: float
+    bias_contributors: list
+    selection_rates: dict
 
 from engines.ingestion import parse_csv, get_column_info
 from engines.bias_engine import get_overall_scorecard
@@ -242,6 +264,74 @@ async def simulate_params(
             ],
         },
     }
+
+def get_ai_insights(prompt):
+    if not model:
+        print("Gemini Error: API Key not configured properly.")
+        return None
+        
+    try:
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+
+        # Remove markdown if present
+        if text.startswith("```json"):
+            text = text[7:-3]
+        elif text.startswith("```"):
+            text = text[3:-3]
+
+        return json.loads(text)
+
+    except Exception as e:
+        print("Gemini Error:", str(e))
+        return None
+
+@app.post("/api/ai-insights")
+async def ai_insights_endpoint(req: InsightRequest):
+    print("AI endpoint hit")
+    print("API KEY:", API_KEY)
+    
+    prompt = f"""
+    You are an expert AI fairness auditor. Analyze the following model metrics and provide a JSON response.
+    
+    Fairness Score: {req.fairness_score}/100
+    Bias Contributors: {json.dumps(req.bias_contributors)}
+    Selection Rates: {json.dumps(req.selection_rates)}
+    
+    Return ONLY a JSON object with this exact structure:
+    {{
+      "diagnosis": "A concise paragraph diagnosing the severity and primary driver of the bias.",
+      "cause": "A concise paragraph explaining the root cause based on the features and selection rates.",
+      "suggestions": [
+         {{
+           "instruction": "Actionable instruction (e.g. Reduce Gender Influence)",
+           "reason": "Why this helps",
+           "mechanism": "How it works mathematically"
+         }}
+      ]
+    }}
+    """
+    
+    print("PROMPT:", prompt)
+    
+    result = get_ai_insights(prompt)
+    print("Gemini response:", result)
+    
+    if result is not None:
+        return result
+    else:
+        # Fallback output
+        return {
+            "diagnosis": "AI Engine Offline. Relying on standard metrics.",
+            "cause": "Gemini API is unavailable or missing configuration.",
+            "suggestions": [
+                {
+                    "instruction": "Review Metrics Manually",
+                    "reason": "AI automated analysis is disabled.",
+                    "mechanism": "Manual review of selection rates and contributors."
+                }
+            ]
+        }
 
 
 if __name__ == "__main__":

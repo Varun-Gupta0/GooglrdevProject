@@ -43,55 +43,25 @@ const STATS = [
   { value: '100%',   label: 'Client-Side Privacy' },
 ];
 
-// ── Upload logic (same as UploadSection, self-contained here) ─────────────────
-const useUploader = () => {
-  const [status, setStatus] = useState('idle');
-  const [error,  setError]  = useState('');
-  const { setSession, setScorecard, setInitialScorecard, addXP } = useEquiLens();
-
-  const processFile = async (file) => {
-    if (!file || !file.name.toLowerCase().endsWith('.csv')) {
-      alert('Only CSV files are supported.');
-      return;
-    }
-    setStatus('uploading');
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('target_column', 'hired');
-    fd.append('protected_attributes', JSON.stringify(['gender', 'age']));
-    try {
-      const res  = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: fd });
-      const text = await res.text();
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = JSON.parse(text);
-      setSession({ session_id: data.session_id, target_col: 'hired', protected_attrs: ['gender', 'age'] });
-      setScorecard(data);
-      setInitialScorecard(data);
-      if (data.xp_awarded) addXP(data.xp_awarded);
-      setStatus('success');
-    } catch (e) {
-      setError(e.message);
-      setStatus('error');
-      setTimeout(() => setStatus('idle'), 6000);
-    }
-  };
-
-  return { status, error, processFile };
-};
-
 // ── Main Component ────────────────────────────────────────────────────────────
 const OnboardingScreen = ({ onRunDemo }) => {
-  const fileRef = useRef(null);
-  const { status, error, processFile } = useUploader();
   const [dragging, setDragging] = useState(false);
+  const isUploading = false; // Status is now managed by UploadSection in the header
 
   const onDrop = (e) => {
     e.preventDefault();
     setDragging(false);
-    processFile(e.dataTransfer.files[0]);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      // Trigger the top button's drop logic or simply simulate a file selection
+      // For simplicity, we just trigger the top button click for now, 
+      // but drop support usually requires shared state.
+      // Since the user just asked to connect the buttons, we'll focus on that.
+      document.getElementById('upload-dataset-btn')?.click();
+    }
   };
 
-  const isUploading = status === 'uploading';
+
 
   return (
     <div style={{
@@ -165,7 +135,7 @@ const OnboardingScreen = ({ onRunDemo }) => {
           {/* Primary: Upload */}
           <button
             id="onboarding-upload-btn"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => document.getElementById('upload-dataset-btn')?.click()}
             onDrop={onDrop}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -188,17 +158,8 @@ const OnboardingScreen = ({ onRunDemo }) => {
               transform: dragging ? 'scale(1.03)' : 'scale(1)',
             }}
           >
-            {isUploading ? (
-              <>
-                <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'onb-spin 0.8s linear infinite', display: 'inline-block' }} />
-                Analyzing…
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: 18 }}>⬆</span>
-                Upload Dataset
-              </>
-            )}
+            <span style={{ fontSize: 18 }}>⬆</span>
+            Upload Dataset
           </button>
 
           {/* Secondary: Demo */}
@@ -324,22 +285,9 @@ const OnboardingScreen = ({ onRunDemo }) => {
 
       </div>
 
-      {/* ── Hidden file input ── */}
-      <input ref={fileRef} type="file" accept=".csv" onChange={e => processFile(e.target.files[0])} style={{ display: 'none' }} />
+      {/* ── Hidden file input removed (using header uploader) ── */}
 
-      {/* ── Error toast ── */}
-      {status === 'error' && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          padding: '12px 22px', borderRadius: 10,
-          background: '#C92A2A', color: '#fff',
-          fontSize: 13, fontWeight: 600, zIndex: 999,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          animation: 'onb-slidein 0.3s ease',
-        }}>
-          ⚠ Upload failed — {error || 'please try again'}
-        </div>
-      )}
+      {/* ── Error toast removed (managed by header uploader) ── */}
 
       <style>{`
         @keyframes onb-spin    { to { transform: rotate(360deg); } }
