@@ -4,6 +4,8 @@ import StepProgressBar from './components/StepProgressBar';
 import UploadSection from './components/UploadSection';
 import DemoMode from './components/DemoMode';
 import OnboardingScreen from './components/OnboardingScreen';
+import SavedReports from './components/SavedReports';
+import { Database } from 'lucide-react';
 import './index.css';
 
 // ── Lazy imports ──────────────────────────────────────────────────────────────
@@ -29,6 +31,7 @@ const frl = (f) => f >= 75 ? 'LOW RISK' : f >= 50 ? 'MED RISK' : 'HIGH RISK';
 // ── Header ─────────────────────────────────────────────────────────────────────
 const Header = () => {
   const { xp, scorecard, session, enterpriseMode, toggleEnterpriseMode, currentStep, setStep } = useEquiLens();
+  const [showSavedReports, setShowSavedReports] = React.useState(false);
   const f       = scorecard.fairness_score;
   const riskCol = fc(f);
   const riskBg  = f >= 75 ? 'rgba(46,216,160,.1)' : f >= 50 ? 'rgba(255,183,77,.1)' : 'rgba(255,68,68,.1)';
@@ -76,6 +79,23 @@ const Header = () => {
 
       {/* Upload button (compact, always visible) */}
       <UploadSection />
+
+      {/* Saved Reports button */}
+      <button
+        onClick={() => setShowSavedReports(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+          fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0,
+          border: '1px solid rgba(46,216,160,0.35)',
+          background: 'rgba(46,216,160,0.1)',
+          color: '#2ed8a0',
+          transition: 'all 0.25s',
+        }}
+        title="View Saved Reports"
+      >
+        <Database size={14} /> Cloud Reports
+      </button>
 
       {/* Demo mode button */}
       <DemoMode />
@@ -136,6 +156,8 @@ const Header = () => {
       >
         {enterpriseMode ? '🎮 Demo Mode' : '🏢 Enterprise'}
       </button>
+      
+      {showSavedReports && <SavedReports onClose={() => setShowSavedReports(false)} />}
     </header>
   );
 };

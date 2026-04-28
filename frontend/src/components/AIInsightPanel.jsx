@@ -11,22 +11,20 @@ import SystemStatus from './SystemStatus';
 import ChangeFeedbackPanel from './ChangeFeedbackPanel';
 import FinalSummaryPanel from './FinalSummaryPanel';
 import { getMaturityLevel } from '../store/useEquiLens';
+import { getGeminiInsights } from '../utils/geminiClient';
 
 // ── Gemini API (Primary AI Path) ──────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const fetchGeminiInsights = async (scorecard) => {
-  const res = await fetch(`${API_BASE}/api/ai-insights`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fairness_score: scorecard.fairness_score,
-      bias_contributors: scorecard.bias_contributors || [],
-      selection_rates: scorecard.selection_rates || {}
-    })
-  });
-  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
-  const data = await res.json();
+  const payload = {
+    fairness_score: scorecard.fairness_score,
+    bias_contributors: scorecard.bias_contributors || [],
+    selection_rates: scorecard.selection_rates || {}
+  };
+  
+  const data = await getGeminiInsights(payload);
+  
+  if (!data) throw new Error("Gemini API failed or returned null");
   
   // Map 'suggestions' from API to 'actions' expected by the UI
   if (data.suggestions && !data.actions) {
