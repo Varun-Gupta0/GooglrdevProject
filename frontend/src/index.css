@@ -86,9 +86,9 @@
   --state-moderate: #D4660A;
   --state-fair:     #2F9E44;
 
-  --text-primary:   #1A1D23;
-  --text-secondary: #4B5563;
-  --text-muted:     #9CA3AF;
+  --text-primary:   #111827;
+  --text-secondary: #374151;
+  --text-muted:     #6B7280;
 
   --accent-purple: #3B5BDB;
   --accent-blue:   #1971C2;
@@ -132,7 +132,7 @@ body {
 
 /* Enterprise body overrides */
 :root.enterprise-mode body {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 ::selection {
@@ -190,10 +190,10 @@ body {
 }
 
 :root.enterprise-mode .card-label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  letter-spacing: 0.08em;
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* ─── NAV BAR ─────────────────────────────────────────────────────────── */
@@ -416,17 +416,17 @@ button {
 }
 
 :root.enterprise-mode .stat-value {
-  font-size: 28px;
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 900;
   letter-spacing: -0.02em;
   text-shadow: none;
 }
 
 :root.enterprise-mode .stat-label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text-secondary);
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
 }
 
 /* ─── SECTION HEADINGS ────────────────────────────────────────────────── */
@@ -444,8 +444,8 @@ button {
   margin-bottom: 16px;
 }
 
-:root.enterprise-mode .section-title { font-size: 18px; }
-:root.enterprise-mode .section-sub   { font-size: 14px; }
+:root.enterprise-mode .section-title { font-size: 22px; font-weight: 800; }
+:root.enterprise-mode .section-sub   { font-size: 15px; color: var(--text-secondary); font-weight: 500; }
 
 /* ─── ANIMATIONS ──────────────────────────────────────────────────────── */
 @keyframes float {
